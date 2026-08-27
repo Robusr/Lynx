@@ -1,9 +1,11 @@
 {
   "$defs": {
     "DataConfig": {
+      "additionalProperties": false,
       "properties": {
         "frames_dir": {
           "default": "data/frames",
+          "description": "Directory of replay frames (demo/CI source).",
           "title": "Frames Dir",
           "type": "string"
         },
@@ -17,6 +19,7 @@
             }
           ],
           "default": null,
+          "description": "Frame index CSV; optional.",
           "title": "Index Path"
         }
       },
@@ -24,14 +27,29 @@
       "type": "object"
     },
     "DomainControllerConfig": {
+      "additionalProperties": false,
       "properties": {
         "model": {
           "default": "laptop",
+          "description": "Onboard compute target (drives resource-budget checks).",
+          "enum": [
+            "laptop",
+            "jetson_orin_nano",
+            "rk3588"
+          ],
           "title": "Model",
           "type": "string"
         },
         "inference_backend": {
           "default": "onnx_cpu",
+          "description": "Inference execution provider for the ONNX backend.",
+          "enum": [
+            "onnx_cpu",
+            "onnx_cuda",
+            "tensorrt",
+            "onnx_acl",
+            "onnx_coreml"
+          ],
           "title": "Inference Backend",
           "type": "string"
         }
@@ -40,14 +58,17 @@
       "type": "object"
     },
     "OutputConfig": {
+      "additionalProperties": false,
       "properties": {
         "frame_id": {
           "default": "base_link",
+          "description": "Coordinate frame for published objects.",
           "title": "Frame Id",
           "type": "string"
         },
         "rate_hz": {
           "default": 10.0,
+          "description": "Perception loop rate (Hz).",
           "title": "Rate Hz",
           "type": "number"
         }
@@ -56,18 +77,27 @@
       "type": "object"
     },
     "PerceptionConfig": {
+      "additionalProperties": false,
       "properties": {
         "backend": {
           "default": "offline",
+          "description": "Detection backend: offline (YOLO11s) | enhanced (YOLO11x + ROI) | onnx (ONNX Runtime).",
+          "enum": [
+            "offline",
+            "enhanced",
+            "onnx"
+          ],
           "title": "Backend",
           "type": "string"
         },
         "conf": {
           "default": 0.4,
+          "description": "Detection confidence threshold (full-frame pass).",
           "title": "Conf",
           "type": "number"
         },
         "modules": {
+          "description": "Enabled pipeline modules.",
           "items": {
             "type": "string"
           },
@@ -78,11 +108,13 @@
           "additionalProperties": {
             "type": "number"
           },
+          "description": "Region of interest around the ego vehicle (meters).",
           "title": "Roi",
           "type": "object"
         },
         "small_target_enhance": {
           "default": false,
+          "description": "Small-target re-inference (enhanced backend).",
           "title": "Small Target Enhance",
           "type": "boolean"
         }
@@ -91,14 +123,17 @@
       "type": "object"
     },
     "SafetyConfig": {
+      "additionalProperties": false,
       "properties": {
         "min_obstacle_height_m": {
           "default": 0.05,
+          "description": "Minimum obstacle height to consider (m).",
           "title": "Min Obstacle Height M",
           "type": "number"
         },
         "max_detection_latency_ms": {
           "default": 100.0,
+          "description": "Latency ceiling (ms); violations flagged.",
           "title": "Max Detection Latency Ms",
           "type": "number"
         }
@@ -107,22 +142,34 @@
       "type": "object"
     },
     "SensorConfig": {
+      "additionalProperties": false,
       "properties": {
         "name": {
+          "description": "Sensor name (must be unique).",
           "title": "Name",
           "type": "string"
         },
         "type": {
+          "description": "Sensor modality.",
+          "enum": [
+            "camera",
+            "lidar",
+            "radar",
+            "imu",
+            "gnss"
+          ],
           "title": "Type",
           "type": "string"
         },
         "model": {
           "default": "",
+          "description": "Sensor model / driver identifier.",
           "title": "Model",
           "type": "string"
         },
         "topic": {
           "default": "",
+          "description": "Data topic (middleware-dependent).",
           "title": "Topic",
           "type": "string"
         },
@@ -130,16 +177,25 @@
           "additionalProperties": {
             "type": "number"
           },
+          "description": "Extrinsics relative to the vehicle frame (x/y/z in m, roll/pitch/yaw in rad).",
           "title": "Mount",
           "type": "object"
         },
         "fps": {
           "default": 20.0,
+          "description": "Native sensor rate (Hz).",
           "title": "Fps",
           "type": "number"
         },
         "sync_source": {
           "default": "software",
+          "description": "Time-sync source; a single master clock is required.",
+          "enum": [
+            "pps",
+            "gptp",
+            "ntp",
+            "software"
+          ],
           "title": "Sync Source",
           "type": "string"
         }
@@ -152,18 +208,22 @@
       "type": "object"
     },
     "VehicleConfig": {
+      "additionalProperties": false,
       "properties": {
         "name": {
+          "description": "Vehicle identifier, e.g. 'demo_factory_truck'.",
           "title": "Name",
           "type": "string"
         },
         "type": {
           "default": "ackermann",
+          "description": "Kinematic model (ackermann, differential, ...).",
           "title": "Type",
           "type": "string"
         },
         "max_speed_ms": {
           "default": 5.0,
+          "description": "Speed ceiling in m/s; safety checks reject <= 0.",
           "title": "Max Speed Ms",
           "type": "number"
         }
@@ -175,19 +235,24 @@
       "type": "object"
     }
   },
+  "additionalProperties": false,
   "properties": {
     "schema_version": {
       "default": "1.0",
+      "description": "Manifest schema version.",
       "title": "Schema Version",
       "type": "string"
     },
     "vehicle": {
-      "$ref": "#/$defs/VehicleConfig"
+      "$ref": "#/$defs/VehicleConfig",
+      "description": "Vehicle description."
     },
     "domain_controller": {
-      "$ref": "#/$defs/DomainControllerConfig"
+      "$ref": "#/$defs/DomainControllerConfig",
+      "description": "Onboard compute."
     },
     "sensors": {
+      "description": "Sensor suite (camera/lidar/...).",
       "items": {
         "$ref": "#/$defs/SensorConfig"
       },
@@ -195,16 +260,20 @@
       "type": "array"
     },
     "perception": {
-      "$ref": "#/$defs/PerceptionConfig"
+      "$ref": "#/$defs/PerceptionConfig",
+      "description": "Perception configuration."
     },
     "output": {
-      "$ref": "#/$defs/OutputConfig"
+      "$ref": "#/$defs/OutputConfig",
+      "description": "Output / publish configuration."
     },
     "safety": {
-      "$ref": "#/$defs/SafetyConfig"
+      "$ref": "#/$defs/SafetyConfig",
+      "description": "Safety bounds."
     },
     "data": {
-      "$ref": "#/$defs/DataConfig"
+      "$ref": "#/$defs/DataConfig",
+      "description": "Replay data source."
     }
   },
   "required": [

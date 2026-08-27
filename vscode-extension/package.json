@@ -65,6 +65,11 @@
         "title": "Lynx: Show Dashboard",
         "category": "Lynx",
         "icon": "$(open-preview)"
+      },
+      {
+        "command": "lynx.validateConfig",
+        "title": "Lynx: Validate Config",
+        "category": "Lynx"
       }
     ],
     "menus": {
@@ -80,6 +85,12 @@
       {
         "fileMatch": "robot*.yaml",
         "url": "./schemas/robot_config.schema.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "yaml",
+        "path": "./snippets/lynx-config.json"
       }
     ]
   },

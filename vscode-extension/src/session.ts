@@ -11,6 +11,8 @@ export class LynxSession {
   private _port = 0;
   private _running = false;
 
+  constructor(private readonly log?: (line: string) => void) {}
+
   get port(): number {
     return this._port;
   }
@@ -42,6 +44,26 @@ export class LynxSession {
     return fs.existsSync(path.join(root.fsPath, "scripts", "run.py"));
   }
 
+  /** Resolve the Python interpreter: explicit `lynx.pythonPath` first, then the
+   *  repo's own `.venv/bin/python`, then VS Code's Python extension setting.
+   *  (VS Code's `python.defaultInterpreterPath` defaults to the bare string
+   *  "python", which is unresolvable on systems without a global `python`.) */
+  static resolvePython(root: string): string {
+    const cfg = vscode.workspace.getConfiguration("lynx").get<string>("pythonPath", "");
+    if (cfg) {
+      return cfg;
+    }
+    const venv = path.join(root, ".venv", "bin", "python");
+    if (fs.existsSync(venv)) {
+      return venv;
+    }
+    const py = vscode.workspace.getConfiguration("python").get<string>("defaultInterpreterPath", "");
+    if (py && fs.existsSync(py)) {
+      return py;
+    }
+    return venv;
+  }
+
   async start(): Promise<void> {
     if (this._running) {
       return;
@@ -53,22 +75,32 @@ export class LynxSession {
     const root = rootUri.fsPath;
 
     this._port = await findFreePort(this.preferredPort());
-    const python = this.pythonPath(root);
+    const python = LynxSession.resolvePython(root);
+
+    this.log?.(`[lynx] launching ${python} scripts/run.py (cwd=${root}, port=${this._port})`);
 
     const env = {
       ...process.env,
       LYNX_HOST: "127.0.0.1",
       LYNX_PORT: String(this._port),
     };
-    this.proc = spawn(python, ["scripts/run.py"], { cwd: root, env, stdio: "ignore" });
+    this.proc = spawn(python, ["scripts/run.py"], {
+      cwd: root,
+      env,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    this.proc.stdout?.on("data", (d: Buffer) => this.log?.(d.toString()));
+    this.proc.stderr?.on("data", (d: Buffer) => this.log?.(d.toString()));
     this.proc.once("error", (err) => {
       this._running = false;
       this.proc = null;
+      this.log?.(`[lynx] launch error: ${err.message}`);
       void vscode.window.showErrorMessage(`Lynx failed to launch: ${err.message} (interpreter: ${python})`);
     });
-    this.proc.once("exit", () => {
+    this.proc.once("exit", (code) => {
       this._running = false;
       this.proc = null;
+      this.log?.(`[lynx] server exited (code=${code ?? "null"})`);
     });
     this._running = true;
   }
@@ -79,6 +111,7 @@ export class LynxSession {
       this.proc = null;
     }
     this._running = false;
+    this.log?.("[lynx] server stopped");
   }
 
   dispose(): void {
@@ -87,25 +120,6 @@ export class LynxSession {
 
   private preferredPort(): number {
     return vscode.workspace.getConfiguration("lynx").get<number>("port", 8123);
-  }
-
-  private pythonPath(root: string): string {
-    const cfg = vscode.workspace.getConfiguration("lynx").get<string>("pythonPath", "");
-    if (cfg) {
-      return cfg;
-    }
-    // Prefer the repo's own virtualenv — it is the most reliable interpreter and
-    // avoids VS Code's `python.defaultInterpreterPath`, whose default is the bare
-    // string "python" (unresolvable on systems without a global `python`).
-    const venv = path.join(root, ".venv", "bin", "python");
-    if (fs.existsSync(venv)) {
-      return venv;
-    }
-    const py = vscode.workspace.getConfiguration("python").get<string>("defaultInterpreterPath", "");
-    if (py && fs.existsSync(py)) {
-      return py;
-    }
-    return venv;
   }
 }
 
