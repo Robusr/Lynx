@@ -64,7 +64,7 @@ export class LynxSession {
     this.proc.once("error", (err) => {
       this._running = false;
       this.proc = null;
-      void vscode.window.showErrorMessage(`Lynx failed to launch: ${err.message}`);
+      void vscode.window.showErrorMessage(`Lynx failed to launch: ${err.message} (interpreter: ${python})`);
     });
     this.proc.once("exit", () => {
       this._running = false;
@@ -94,11 +94,18 @@ export class LynxSession {
     if (cfg) {
       return cfg;
     }
+    // Prefer the repo's own virtualenv — it is the most reliable interpreter and
+    // avoids VS Code's `python.defaultInterpreterPath`, whose default is the bare
+    // string "python" (unresolvable on systems without a global `python`).
+    const venv = path.join(root, ".venv", "bin", "python");
+    if (fs.existsSync(venv)) {
+      return venv;
+    }
     const py = vscode.workspace.getConfiguration("python").get<string>("defaultInterpreterPath", "");
-    if (py) {
+    if (py && fs.existsSync(py)) {
       return py;
     }
-    return path.join(root, ".venv", "bin", "python");
+    return venv;
   }
 }
 
