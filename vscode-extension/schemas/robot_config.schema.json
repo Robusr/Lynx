@@ -125,6 +125,12 @@
     "SafetyConfig": {
       "additionalProperties": false,
       "properties": {
+        "min_braking_distance_m": {
+          "default": 1.0,
+          "description": "Minimum braking distance (m); must be > 0.",
+          "title": "Min Braking Distance M",
+          "type": "number"
+        },
         "min_obstacle_height_m": {
           "default": 0.05,
           "description": "Minimum obstacle height to consider (m).",
@@ -136,6 +142,12 @@
           "description": "Latency ceiling (ms); violations flagged.",
           "title": "Max Detection Latency Ms",
           "type": "number"
+        },
+        "redundant_fov_required": {
+          "default": true,
+          "description": "Require redundant forward FOV coverage.",
+          "title": "Redundant Fov Required",
+          "type": "boolean"
         }
       },
       "title": "SafetyConfig",
@@ -165,6 +177,18 @@
           "default": "",
           "description": "Sensor model / driver identifier.",
           "title": "Model",
+          "type": "string"
+        },
+        "interface": {
+          "default": "ethernet",
+          "description": "Physical interface (drives the interface-contract check).",
+          "enum": [
+            "gige",
+            "ethernet",
+            "can",
+            "usb"
+          ],
+          "title": "Interface",
           "type": "string"
         },
         "topic": {
@@ -217,7 +241,13 @@
         },
         "type": {
           "default": "ackermann",
-          "description": "Kinematic model (ackermann, differential, ...).",
+          "description": "Kinematic model.",
+          "enum": [
+            "diff_drive",
+            "ackermann",
+            "skid_steer",
+            "omni"
+          ],
           "title": "Type",
           "type": "string"
         },

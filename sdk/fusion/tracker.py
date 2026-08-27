@@ -65,12 +65,16 @@ class SimpleTracker:
                 Track(
                     cls_id=d.cls_id,
                     cls_name=d.cls_name,
+                    type=d.type,
+                    sub_type=d.sub_type,
                     bbox_2d=t["bbox"],
                     bbox_3d=d.bbox_3d,
                     confidence=d.confidence,
                     source=d.source,
                     occlusion_ratio=d.occlusion_ratio,
                     small_target_score=d.small_target_score,
+                    pose_covariance=d.pose_covariance,
+                    attributes=d.attributes,
                     track_id=tid,
                     velocity=t["velocity"],
                 )

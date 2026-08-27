@@ -13,6 +13,7 @@ sensors:
   - name: "front_cam"
     type: "camera"
     model: "demo_replay_cam"
+    interface: "usb"                # replay stand-in (real camera: gige)
     topic: "cam/front"
     mount: { x: 0.0, y: 0.0, z: 1.4, roll: 0, pitch: 0, yaw: 0 }
     fps: 20
@@ -20,6 +21,7 @@ sensors:
   - name: "front_lidar"            # enables late fusion (synthetic in the demo)
     type: "lidar"
     model: "demo_replay_lidar"
+    interface: "ethernet"
     topic: "lidar/front"
     mount: { x: 0.1, y: 0.0, z: 1.3, roll: 0, pitch: 0, yaw: 0 }
     sync_source: "software"
@@ -36,8 +38,10 @@ output:
   rate_hz: 10
 
 safety:                           # @ai-lock — validator treats these as read-only
+  min_braking_distance_m: 1.0
   min_obstacle_height_m: 0.05
   max_detection_latency_ms: 100
+  redundant_fov_required: true
 
 data:                             # replay source for the demo/CI loop
   frames_dir: "data/frames"

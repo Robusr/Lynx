@@ -11,7 +11,7 @@ import time
 from collections import deque
 from typing import Deque, Dict
 
-from sdk.output.frame import PerceptionFrame
+from sdk.output.frame import PerceptionFrame, source_label
 
 
 class Metrics:
@@ -36,7 +36,8 @@ class Metrics:
         self._last_signs = len(frame.traffic_signs)
         sources: Dict[str, int] = {}
         for o in frame.objects:
-            sources[o.source] = sources.get(o.source, 0) + 1
+            label = source_label(o.source)
+            sources[label] = sources.get(label, 0) + 1
         self._last_sources = sources
 
     @staticmethod

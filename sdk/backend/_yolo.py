@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import List, Optional
 
-from sdk.output.frame import BBox2D, Detection
+from sdk.output.frame import BBox2D, Detection, SourceMask
 
 
 def load_yolo(weights: str, device: Optional[str] = None):
@@ -41,7 +41,7 @@ def predict_detections(
                     cls_name=str(names.get(cls, cls)),
                     bbox_2d=BBox2D(x=x1, y=y1, w=x2 - x1, h=y2 - y1),
                     confidence=float(boxes.conf[i]),
-                    source="camera",
+                    source=SourceMask.CAMERA,
                 )
             )
     return dets

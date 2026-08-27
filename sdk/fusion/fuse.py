@@ -12,7 +12,7 @@ from typing import List, Optional, Tuple
 
 from sdk.camera import Pinhole
 from sdk.geometry import iou
-from sdk.output.frame import Detection
+from sdk.output.frame import Detection, SourceMask
 
 
 def fuse_camera_lidar(
@@ -51,9 +51,11 @@ def fuse_camera_lidar(
                     bbox_2d=cd.bbox_2d,
                     bbox_3d=ld.bbox_3d,
                     confidence=max(cd.confidence, ld.confidence),
-                    source="fusion",
+                    source=SourceMask.CAMERA | SourceMask.LIDAR,
                     occlusion_ratio=cd.occlusion_ratio,
                     small_target_score=cd.small_target_score,
+                    pose_covariance=cd.pose_covariance,
+                    attributes=cd.attributes,
                 )
             )
             matched_lidar.add(li)

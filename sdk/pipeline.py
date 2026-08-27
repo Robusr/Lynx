@@ -104,6 +104,7 @@ def run(
                     cls_name=d.cls_name,
                     bbox_2d=d.bbox_2d,
                     confidence=d.confidence,
+                    stamp_ns=batch.stamp_ns,
                 )
                 for d in detections
                 if d.cls_name in SIGN_NAMES
@@ -117,6 +118,7 @@ def run(
             frame = PerceptionFrame(
                 stamp_ns=batch.stamp_ns,
                 frame_id=cfg.output.frame_id,
+                seq=n,
                 backend=backend.name,
                 objects=tracks,
                 traffic_signs=signs,

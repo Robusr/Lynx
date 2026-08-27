@@ -14,7 +14,7 @@ from __future__ import annotations
 from typing import List
 
 from sdk.camera import Pinhole
-from sdk.output.frame import BBox3D, Detection
+from sdk.output.frame import BBox3D, Detection, SourceMask
 
 # Typical 3D extents (l, w, h) in metres, per class, for the synthetic LiDAR.
 CLASS_SIZE = {
@@ -48,7 +48,7 @@ def synthetic_lidar(camera_dets: List[Detection], cam: Pinhole) -> List[Detectio
                 cls_name="obstacle",
                 bbox_3d=BBox3D(x=depth, y=y, z=z, l=cl, w=w, h=ch, yaw=0.0),
                 confidence=d.confidence,
-                source="lidar",
+                source=SourceMask.LIDAR,
             )
         )
     return out

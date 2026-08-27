@@ -17,18 +17,29 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from sdk.config import load_config
-from sdk.validate import validate
+from sdk.validate import to_report, validate
 
 
 def main() -> None:
-    cfg_path = sys.argv[1] if len(sys.argv) > 1 else "config/robot.demo.yaml"
+    argv = sys.argv[1:]
+    out_path = None
+    if "--out" in argv:
+        i = argv.index("--out")
+        if i + 1 < len(argv):
+            out_path = argv[i + 1]
+            del argv[i:i + 2]
+    cfg_path = argv[0] if argv else "config/robot.demo.yaml"
     try:
         cfg = load_config(cfg_path)
     except Exception as exc:  # structural (pydantic) or IO error
         print(json.dumps({"ok": False, "error": str(exc)}))
         return
-    checks = [{"name": c.name, "severity": c.severity, "message": c.message} for c in validate(cfg)]
-    print(json.dumps({"ok": True, "checks": checks}, ensure_ascii=False))
+    report = to_report(validate(cfg))
+    print(json.dumps(report, ensure_ascii=False))
+    if out_path:
+        Path(out_path).write_text(
+            json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
 
 
 if __name__ == "__main__":

@@ -22,7 +22,9 @@ class _Config(BaseModel):
 
 class VehicleConfig(_Config):
     name: str = Field(description="Vehicle identifier, e.g. 'demo_factory_truck'.")
-    type: str = Field(default="ackermann", description="Kinematic model (ackermann, differential, ...).")
+    type: Literal["diff_drive", "ackermann", "skid_steer", "omni"] = Field(
+        default="ackermann", description="Kinematic model."
+    )
     max_speed_ms: float = Field(default=5.0, description="Speed ceiling in m/s; safety checks reject <= 0.")
 
 
@@ -39,6 +41,9 @@ class SensorConfig(_Config):
     name: str = Field(description="Sensor name (must be unique).")
     type: Literal["camera", "lidar", "radar", "imu", "gnss"] = Field(description="Sensor modality.")
     model: str = Field(default="", description="Sensor model / driver identifier.")
+    interface: Literal["gige", "ethernet", "can", "usb"] = Field(
+        default="ethernet", description="Physical interface (drives the interface-contract check)."
+    )
     topic: str = Field(default="", description="Data topic (middleware-dependent).")
     mount: Dict[str, float] = Field(
         default_factory=lambda: {"x": 0, "y": 0, "z": 0, "roll": 0, "pitch": 0, "yaw": 0},
@@ -76,8 +81,10 @@ class OutputConfig(_Config):
 
 
 class SafetyConfig(_Config):
+    min_braking_distance_m: float = Field(default=1.0, description="Minimum braking distance (m); must be > 0.")
     min_obstacle_height_m: float = Field(default=0.05, description="Minimum obstacle height to consider (m).")
     max_detection_latency_ms: float = Field(default=100.0, description="Latency ceiling (ms); violations flagged.")
+    redundant_fov_required: bool = Field(default=True, description="Require redundant forward FOV coverage.")
 
 
 class DataConfig(_Config):
