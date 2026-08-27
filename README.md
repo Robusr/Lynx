@@ -1,15 +1,21 @@
-# Lynx
+<h1 align="center">Lynx</h1>
 
-[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
-[![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB.svg?logo=python&logoColor=white)](https://www.python.org/)
-[![Version](https://img.shields.io/badge/Version-0.1.0-lightgrey.svg)](pyproject.toml)
-[![Pydantic](https://img.shields.io/badge/Pydantic-2.x-E92063.svg?logo=pydantic&logoColor=white)](https://docs.pydantic.dev/)
+<p align="center">
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/License-Apache_2.0-blue.svg"></a>
+  <a href="https://www.python.org/"><img alt="Python" src="https://img.shields.io/badge/Python-3.11%2B-3776AB.svg?logo=python&logoColor=white"></a>
+  <a href="pyproject.toml"><img alt="Version" src="https://img.shields.io/badge/Version-0.1.0-lightgrey.svg"></a>
+  <a href="https://docs.pydantic.dev/"><img alt="Pydantic" src="https://img.shields.io/badge/Pydantic-2.x-E92063.svg?logo=pydantic&logoColor=white"></a>
+</p>
 
-[English](README.md) | [简体中文](README.zh-CN.md)
+<p align="center">
+  <a href="README.md">English</a> | <a href="README.zh-CN.md">简体中文</a>
+</p>
 
-Hardware-agnostic perception-fusion SDK for low-speed autonomous vehicles in
-enclosed parks (factories, ports, campuses, and parks). One SDK, three inference
-backends, one standardized output.
+<p align="center">
+  <em>Hardware-agnostic perception-fusion SDK for low-speed autonomous vehicles in
+  enclosed sites (factories, ports, campuses, and parks). One SDK, three inference
+  backends, one standardized output.</em>
+</p>
 
 This repository is the **walking skeleton**: a vertical slice through every layer
 of the product, built to be hardened into the production SDK rather than thrown
@@ -306,9 +312,3 @@ follow Conventional Commits and are written in English.
 ## License
 
 Apache-2.0. See [LICENSE](LICENSE).
-
-## Documentation
-
-Product documents (business plan, technical architecture, patent FTO, financial
-model, demo plan) live in the `perception-sdk` workspace and are the source of
-truth for the SDK's target architecture.

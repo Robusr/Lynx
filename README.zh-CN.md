@@ -1,14 +1,20 @@
-# Lynx
+<h1 align="center">Lynx</h1>
 
-[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
-[![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB.svg?logo=python&logoColor=white)](https://www.python.org/)
-[![Version](https://img.shields.io/badge/Version-0.1.0-lightgrey.svg)](pyproject.toml)
-[![Pydantic](https://img.shields.io/badge/Pydantic-2.x-E92063.svg?logo=pydantic&logoColor=white)](https://docs.pydantic.dev/)
+<p align="center">
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/License-Apache_2.0-blue.svg"></a>
+  <a href="https://www.python.org/"><img alt="Python" src="https://img.shields.io/badge/Python-3.11%2B-3776AB.svg?logo=python&logoColor=white"></a>
+  <a href="pyproject.toml"><img alt="Version" src="https://img.shields.io/badge/Version-0.1.0-lightgrey.svg"></a>
+  <a href="https://docs.pydantic.dev/"><img alt="Pydantic" src="https://img.shields.io/badge/Pydantic-2.x-E92063.svg?logo=pydantic&logoColor=white"></a>
+</p>
 
-[English](README.md) | [简体中文](README.zh-CN.md)
+<p align="center">
+  <a href="README.md">English</a> | <a href="README.zh-CN.md">简体中文</a>
+</p>
 
-面向封闭园区（厂区、港口、园区、校园）低速自动驾驶车辆的硬件无关感知融合 SDK。
-一套 SDK、三种推理后端、一种标准化输出。
+<p align="center">
+  <em>面向封闭园区（厂区、港口、园区、校园）低速自动驾驶车辆的硬件无关感知融合 SDK。
+  一套 SDK、三种推理后端、一种标准化输出。</em>
+</p>
 
 本仓库是 **行走骨架（walking skeleton）**：贯穿产品每一层的垂直切片，目标是打磨成
 生产级 SDK，而不是在演示结束后被丢弃。
@@ -292,8 +298,3 @@ SDK 可通过 `pip install -e .` 安装，含可选依赖 `.[ml]`、`.[server]`�
 ## 许可证
 
 Apache-2.0。详见 [LICENSE](LICENSE)。
-
-## 文档
-
-产品文档（商业计划、技术架构、专利 FTO、财务模型、演示计划）位于 `perception-sdk`
-工作区，是 SDK 目标架构的事实来源。
