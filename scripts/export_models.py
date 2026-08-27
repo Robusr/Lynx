@@ -27,7 +27,9 @@ def main() -> None:
     weights = sys.argv[1:] or ["yolo11s.pt"]
     for w in weights:
         model = YOLO(w)
-        out = model.export(format="onnx", opset=12, simplify=True)
+        # simplify=True pulls in onnxslim/onnxsim (not installed; PyPI is slow here)
+        # and is only a size/perf nicety, so skip it for a reproducible export.
+        out = model.export(format="onnx", opset=12, simplify=False)
         print(f"exported {w} → {out}")
 
 

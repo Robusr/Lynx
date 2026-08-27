@@ -10,10 +10,14 @@ from typing import Callable, List, Optional
 
 import numpy as np
 
-from sdk.backend import EnhancedBackend, IBackend, OfflineBackend
+from sdk.backend import EnhancedBackend, IBackend, OfflineBackend, OnnxBackend
+from sdk.camera import Pinhole
 from sdk.config import RobotConfig, load_config
+from sdk.fusion.fuse import fuse_camera_lidar
+from sdk.fusion.lidar import synthetic_lidar
 from sdk.fusion.tracker import SimpleTracker
 from sdk.input.replay_reader import ReplayReader
+from sdk.metrics import Metrics
 from sdk.output.frame import PerceptionFrame, TrafficSign, Track
 from sdk.validate import summarize, validate
 
@@ -26,10 +30,13 @@ OnFrame = Callable[[PerceptionFrame, Optional[np.ndarray]], None]
 
 def build_backend(cfg: RobotConfig) -> IBackend:
     device = _inference_device(cfg)
+    conf = cfg.perception.conf
     backend = cfg.perception.backend
     if backend == "enhanced":
-        return EnhancedBackend(device=device)
-    return OfflineBackend(device=device)
+        return EnhancedBackend(conf=conf, device=device)
+    if backend == "onnx":
+        return OnnxBackend(conf=conf)
+    return OfflineBackend(conf=conf, device=device)
 
 
 def _inference_device(cfg: RobotConfig) -> str:
@@ -41,10 +48,21 @@ def _inference_device(cfg: RobotConfig) -> str:
     }.get(cfg.domain_controller.inference_backend, "cpu")
 
 
-def run(cfg: RobotConfig, on_frame: OnFrame, stop=None, max_frames: Optional[int] = None) -> None:
+def _has_lidar(cfg: RobotConfig) -> bool:
+    return any(s.type == "lidar" for s in cfg.sensors)
+
+
+def run(
+    cfg: RobotConfig,
+    on_frame: OnFrame,
+    stop=None,
+    max_frames: Optional[int] = None,
+    metrics: Optional[Metrics] = None,
+) -> None:
     """Run the perception loop until the stream ends, `stop` is set, or `max_frames` reached.
 
     `max_frames` bounds the loop for smoke tests / CI (a real deploy leaves it None).
+    `metrics`, if given, records every emitted frame for telemetry.
     """
     checks = validate(cfg)
     print(summarize(checks))
@@ -86,6 +104,10 @@ def run(cfg: RobotConfig, on_frame: OnFrame, stop=None, max_frames: Optional[int
                 for d in detections
                 if d.cls_name in SIGN_NAMES
             ]
+            if _has_lidar(cfg):
+                cam = Pinhole.for_size(image.shape[1], image.shape[0])
+                lidar = synthetic_lidar(objects, cam)
+                objects = fuse_camera_lidar(objects, lidar, cam)
             tracks: List[Track] = tracker.update(objects, dt=period or 0.1)
 
             frame = PerceptionFrame(
@@ -97,6 +119,8 @@ def run(cfg: RobotConfig, on_frame: OnFrame, stop=None, max_frames: Optional[int
                 latency_ms=latency_ms,
             )
             on_frame(frame, image)
+            if metrics is not None:
+                metrics.record(frame)
 
             if period > 0:
                 time.sleep(period)
