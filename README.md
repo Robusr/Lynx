@@ -1,149 +1,314 @@
-# Lynx — 低速封闭园区无人车感知融合算法 SDK
+# Lynx
+
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB.svg?logo=python&logoColor=white)](https://www.python.org/)
+[![Version](https://img.shields.io/badge/Version-0.1.0-lightgrey.svg)](pyproject.toml)
+[![Pydantic](https://img.shields.io/badge/Pydantic-2.x-E92063.svg?logo=pydantic&logoColor=white)](https://docs.pydantic.dev/)
+
+[English](README.md) | [简体中文](README.zh-CN.md)
 
 Hardware-agnostic perception-fusion SDK for low-speed autonomous vehicles in
-enclosed parks (厂区 / 港口 / 园区 / 校园). One SDK, three backends, one
-standardized output.
+enclosed parks (factories, ports, campuses, and parks). One SDK, three inference
+backends, one standardized output.
 
-This repository is the **walking skeleton**: a vertical slice through every
-layer of the product, designed to be hardened into the real SDK rather than
-thrown away after the roadshow.
+This repository is the **walking skeleton**: a vertical slice through every layer
+of the product, built to be hardened into the production SDK rather than thrown
+away after the demo.
 
-## What it does
+## Overview
 
-- Reads a single config manifest (`config/robot.demo.yaml`) — the only
-  hand-written deployment file; everything else is generated or validated from it.
-- Runs the perception loop: **preflight → backend → tracking → standardized output**.
-- Streams results to a browser dashboard over WebSocket (camera overlay + BEV).
-- Switches between the two backends at runtime with one HTTP call.
+Lynx turns raw sensor frames into a standardized `PerceptionFrame` (detected and
+tracked objects plus traffic signs) behind a hardware-agnostic plugin interface.
+The core pipeline never changes when a sensor, a domain controller, or a
+middleware transport is swapped — only an adapter plugin is added.
+
+- A single config manifest is the **single source of truth**; every artifact
+  (JSON Schema, validation report, backend selection, output frame) is generated
+  or validated from it.
+- The output data model aligns with ASAM OpenLABEL / ISO 23150 conventions.
+- Deployment safety is enforced by a **preflight gate** of seven semantic checks.
+
+## Features
+
+- **Hardware-agnostic HAL** — `ISensorAdapter`, `IInferenceBackend`, and
+  `IMiddlewareAdapter` plugin seams with demo implementations.
+- **Single source of truth** — one Pydantic model (`sdk/config.py`) drives the
+  JSON Schema, the config form, the validator, and runtime behavior.
+- **Preflight validation gate** — seven deployment checks (time-sync, extrinsics,
+  interface contract, bandwidth, FOV, resource, safety).
+- **Three inference backends** — offline (YOLO11s), enhanced (YOLO11x + ROI
+  re-inference), and ONNX Runtime (pluggable execution providers).
+- **Standardized output** — `PerceptionFrame` with `ObjectType` / `SignType` /
+  `SourceMask` enums, derived fields, 2D/3D boxes, tracks, and traffic signs.
+- **Camera-to-LiDAR late fusion** — IoU association between projected 3D boxes and
+  camera 2D boxes.
+- **In-process telemetry** — latency percentiles, throughput, and per-source counts.
+- **FastAPI demo server** and a schema-driven **VS Code extension**.
+
+## Architecture
 
 ```
-config ──▶ sdk.config ──▶ sdk.validate ──▶ sdk.backend ──▶ sdk.fusion ──▶ sdk.output
- (YAML)      (pydantic)     (semantic)      (offline/       (tracker +     (PerceptionFrame)
-                                             enhanced/        lidar fusion) → FastAPI → dashboard
-                                             onnx)
+config/robot.demo.yaml        single source of truth (YAML)
+        |
+        v
+   sdk.config                 Pydantic model, extra="forbid"
+        |
+        v
+   sdk.validate               7 preflight checks
+        |
+        v
+   sdk.backend                offline | enhanced | onnx  (IBackend)
+        |
+        v
+   sdk.fusion                 synthetic lidar -> camera-lidar fuse -> SimpleTracker
+        |
+        v
+   sdk.output                 PerceptionFrame (ASAM OpenLABEL / ISO 23150 aligned)
+        |
+        +----> FastAPI / WebSocket / NDJSON (IMiddlewareAdapter)
 ```
 
-## Repo layout
+The two ends of the pipeline are plugin seams:
+
+- `ISensorAdapter` (`sdk/hal/sensor.py`) feeds time-aligned `FrameBatch` objects
+  into the pipeline. The demo ships `ReplaySensorAdapter`, which plays recorded
+  frames back like a live camera driver.
+- `IMiddlewareAdapter` (`sdk/hal/middleware.py`) publishes each `PerceptionFrame`
+  to any transport. The demo ships `JsonLineMiddlewareAdapter` (NDJSON).
+
+## Repository layout
 
 ```
-config/robot.demo.yaml   single source of truth manifest
-sdk/                     the SDK (no FastAPI/UI here)
-  config.py              schema + loader
-  validate.py            deployment preflight checks
-  geometry.py            IoU / NMS / merge (dependency-light)
-  output/frame.py        PerceptionFrame — the product contract
-  backend/               IBackend + offline + enhanced + onnx (+ lazy YOLO glue)
-  input/replay_reader.py replay data source
-  camera.py              pinhole model — the 3D↔2D bridge for fusion
-  metrics.py             in-process telemetry (latency / throughput / sources)
-  fusion/tracker.py      SORT-lite tracker
-  fusion/fuse.py         camera↔lidar late fusion (2D IoU association)
-  fusion/lidar.py        synthetic lidar (demo seed — no hardware)
-  pipeline.py            run(): config → validate → detect → track → fuse → emit
-server.py                FastAPI + WebSocket demo
-dashboard/index.html     single-page dashboard
-scripts/                 run / smoke / benchmark / make_demo_data / make_index / fetch_demo_data / frames_to_video / export_models / export_schema
-docs/schema/             generated JSON Schema (PerceptionFrame + config)
-tests/                   contract + validator tests
+config/robot.demo.yaml     single source of truth manifest
+sdk/                       the SDK (no FastAPI or UI here)
+  config.py                schema + loader
+  validate.py              deployment preflight checks (7) + to_report()
+  geometry.py              IoU / NMS / merge
+  output/frame.py          PerceptionFrame and the product data model
+  backend/                 IBackend + offline + enhanced + onnx
+  input/replay_reader.py   FrameBatch + replay data source
+  hal/                     ISensorAdapter / IMiddlewareAdapter + demo adapters
+  fusion/                  tracker, camera-lidar late fusion, synthetic lidar
+  camera.py                pinhole model (3D <-> 2D bridge for fusion)
+  metrics.py               in-process telemetry
+  pipeline.py              run(): config -> validate -> detect -> track -> fuse -> emit
+server.py                  FastAPI + WebSocket demo
+dashboard/index.html       single-page dashboard
+vscode-extension/          VS Code extension (config form + dashboard)
+scripts/                   run / smoke / benchmark / config_io / export_* / make_demo_data ...
+docs/schema/               generated JSON Schema (config + PerceptionFrame)
+tests/                     contract + validator tests
 ```
 
-## Quickstart
+## Quick start
+
+Requires Python 3.11+ (ML backends recommend 3.11/3.12).
 
 ```bash
-# 1. Python 3.11/3.12 virtualenv (ultralytics/onnxruntime need it)
+# 1. virtualenv
 python3.12 -m venv .venv && source .venv/bin/activate
 
-# 2. Core deps (data model / config / validation / server — no ML)
+# 2. core deps (data model / config / validation / server)
 pip install -r requirements.txt
 
-# 3. (Optional, for inference) ML deps + models
+# 3. ML deps (optional, for inference)
 pip install -r requirements-ml.txt
-python scripts/export_models.py yolo11s.pt          # or just download yolo11s.pt
 
-# 4. Generate synthetic demo frames (no camera needed) — or drop your own
-#    images into data/frames/ and index them instead
+# 4. demo frames (synthetic, no camera required)
 python scripts/make_demo_data.py 240 data/frames
-# python scripts/make_index.py data/frames data/index.csv   # only for your own frames
 
-# 4b. (Optional) export the JSON Schema contract for downstream integrators
-python scripts/export_schema.py docs/schema
-
-# 5. Run
+# 5. run
 python scripts/run.py
-# → http://127.0.0.1:8000
-# LYNX_PORT=8001 python scripts/run.py   # if 8000 is taken
+# -> http://127.0.0.1:8000
 ```
 
-To exercise the SDK headlessly (no ML needed) while you collect frames:
+Headless smoke test (no server, no UI):
 
 ```bash
-python -m pytest tests/         # contract + validator tests
-python - <<'PY'                 # preflight only
-from sdk.config import load_config
-from sdk.validate import validate, summarize
-print(summarize(validate(load_config("config/robot.demo.yaml"))))
-PY
+python scripts/smoke.py config/robot.demo.yaml 5          # 5 frames
+python scripts/smoke.py config/robot.demo.yaml 5 --jsonl  # publish NDJSON
+```
+
+Run the tests:
+
+```bash
+python -m pytest tests/
 ```
 
 ## Configuration
 
-Edit `config/robot.demo.yaml`. The keys map 1:1 to `sdk/config.py`. Backend is a
-config-level switch:
+`config/robot.demo.yaml` is the only hand-written deployment file. Its keys map
+1:1 to `sdk/config.py`, and it is the source of the JSON Schema that powers
+editor IntelliSense and the VS Code config form.
 
 ```yaml
+vehicle:                    # kinematic model + envelope
+  name: "demo_factory_truck"
+  type: "ackermann"         # diff_drive | ackermann | skid_steer | omni
+  max_speed_ms: 5.0
+  wheelbase_m: 1.8
+  track_width_m: 1.4
+  dimensions: { l: 2.4, w: 1.3, h: 1.9 }
+
+domain_controller:          # onboard compute target
+  vendor: "nvidia"
+  model: "laptop"           # laptop | jetson_orin_nano | rk3588
+  compute_tops: 0
+  inference_backend: "onnx_cpu"
+  os: "ubuntu_22.04"
+  middleware: "custom"      # ros2_humble | ros2_iron | dds_rti | some_ip | custom
+
+sensors:                    # one entry per sensor
+  - name: "front_cam"
+    type: "camera"
+    interface: "usb"        # gige | ethernet | can | usb
+    topic: "cam/front"
+    mount: { x: 0.0, y: 0.0, z: 1.4, roll: 0, pitch: 0, yaw: 0 }
+    fps: 20
+    sync_source: "software"
+
 perception:
-  backend: "offline"   # offline | enhanced | onnx
+  backend: "offline"        # offline | enhanced | onnx
+  conf: 0.4
+  modules: [detection, tracking, traffic_sign]
+  roi: { forward_m: 60, lateral_m: 15 }
+  small_target_enhance: true
+
+calibration:                # contract fields, loaded by CalibStore (later milestone)
+  camera_intrinsics: null
+  extrinsics: null
+  lidar_camera_extrinsic: null
+  time_offset_ms: {}
+
+safety:                     # @ai-lock - read-only
+  min_braking_distance_m: 1.0
+  min_obstacle_height_m: 0.05
+  max_detection_latency_ms: 100
+  redundant_fov_required: true
+
+data:                       # replay source for the demo
+  frames_dir: "data/frames"
+  index_path: "data/index.csv"
 ```
 
-- **offline** — single YOLO11s pass, CPU-friendly. The deployed fleet default.
-- **enhanced** — YOLO11x full-frame + ROI re-inference (distant band upscale +
-  merge) for small/distant targets. The AI large-model edition.
-- **onnx** — the same YOLO11s graph on ONNX Runtime with a pluggable execution
-  provider (`domain_controller.inference_backend`: onnx_cpu / onnx_cuda /
-  tensorrt / onnx_acl / onnx_coreml). The hardware-agnostic path.
+AI-annotation conventions in the manifest:
 
-## Architecture notes
+- `@ai-lock` marks read-only blocks (e.g. `safety`) that tooling must not
+  silently rewrite.
+- `@ai-extend` marks extensible custom attributes.
+- `@ai-telemetry` marks fields feeding the telemetry stream.
 
-- **One interface, two backends** — `sdk.backend.base.IBackend` is the plugin
-  seam; third-party / hardware-specific backends drop in without touching the
-  pipeline.
-- **Single source of truth** — config manifest drives validation, backend
-  selection, output frame, and the dashboard.
-- **Standardized output** — `PerceptionFrame` aligns with ASAM OpenLABEL /
-  ISO 23150 conventions (2D + 3D boxes, track ids, velocity, occlusion,
-  small-target score, traffic signs).
-- **Hardware-agnostic inference** — the `onnx` backend runs the same YOLO11 ONNX
-  graph on ONNX Runtime with pluggable execution providers (CPU / CUDA /
-  TensorRT / ARM ACL / CoreML); the SDK code path never changes. `scripts/benchmark.py`
-  measures the EP speedup on this host.
-- **Camera↔LiDAR late fusion** — when a `lidar` sensor is present in the config,
-  `pipeline.run()` projects LiDAR 3D boxes through the pinhole model and
-  associates them with camera 2D boxes by IoU (`sdk/fusion/fuse.py`). Matched
-  pairs become `source="fusion"` detections carrying both `bbox_2d` (class from
-  the camera) and `bbox_3d` (extent from the LiDAR); unmatched detections pass
-  through untouched. The demo uses synthetic LiDAR (see caveats).
-- **@ai-* annotations** in the config mark safety-critical, read-only blocks so
-  AI agents (and future tooling) don't silently rewrite them.
+## Data model
 
-## Demo caveats (not shipped in the SDK)
+The product contract is `PerceptionFrame` in `sdk/output/frame.py`, exported as a
+JSON Schema in `docs/schema/perception_frame.schema.json`.
 
-The dashboard's bird's-eye view estimates depth with the pinhole heuristic
-`depth ≈ focal / bbox_height`. That lives only in `dashboard/index.html`; the
-SDK itself emits 2D/3D boxes and never fabricates metric depth.
+| Type | Description |
+|---|---|
+| `PerceptionFrame` | `stamp_ns`, `frame_id`, `seq`, `backend`, `objects`, `traffic_signs`, `latency_ms` |
+| `Track` | `Detection` plus `track_id` and 3-D `velocity` |
+| `TrafficSign` | `type`, `cls_name`, `text`, `bbox_2d/3d`, `confidence`, `stamp_ns` |
+| `Detection` | `cls_id`, `cls_name`, `type`, `sub_type`, `bbox_2d/3d`, `confidence`, `source`, `occlusion_ratio`, `small_target_score`, `pose_covariance`, `attributes` |
+| `BBox2D` / `BBox3D` | image-plane (x, y, w, h) and world/vehicle (x, y, z, l, w, h, yaw) boxes |
 
-**Synthetic LiDAR** — the demo replays no point cloud. `sdk/fusion/lidar.py`
-back-projects each camera box to a plausible 3D box (depth from the same height
-heuristic) to exercise the fusion path end-to-end. A production build swaps this
-for a real point-cloud clustering front-end; `fuse_camera_lidar` is unchanged.
+Enums:
 
-## Packaging & CI
+- `ObjectType` — `pedestrian`, `bicycle`, `vehicle`, `truck`, `cone`, `barrier`,
+  `traffic_sign`, `traffic_light`, `unknown`.
+- `SignType` — `stop`, `speed_limit`, `yield`, `no_entry`, `traffic_light`,
+  `unknown`.
+- `SourceMask` (`IntFlag`) — `CAMERA=1`, `LIDAR=2`, `RADAR=4`; fusion is the
+  bitwise OR (e.g. `CAMERA | LIDAR = 3`). `source_label()` renders a human label.
 
-Installable as `pip install -e .` with extras `.[ml]`, `.[server]`, `.[dev]`.
-`pyproject.toml` is the single packaging source; `.github/workflows/ci.yml` runs
-the dependency-light test suite (`pytest`) on Python 3.11/3.12.
+Derived fields are filled automatically by Pydantic validators: `type` is derived
+from `cls_name` (e.g. `person` -> `pedestrian`), and `sub_type` carries the fine
+class. `pose_covariance` is a 6x6 row-major list (empty when unknown);
+`attributes` holds `@ai-extend` custom data.
 
-## Milestones
+## Backends
 
-M0 scaffold → M1 offline loop → M2 enhanced + ROI re-inference → M3 dashboard →
-M4 hardening (metrics, tests, packaging). See `05-demo-plan.md` in the product
-docs for the full plan.
+All backends implement the same `IBackend` interface (`init`, `detect`, `info`,
+`release`) and are selected with `perception.backend`.
+
+| Backend | Model | Notes |
+|---|---|---|
+| `offline` | YOLO11s | Single full-frame pass, CPU-friendly. Deployed fleet default. |
+| `enhanced` | YOLO11x + YOLO11s ROI | Full-frame pass plus a distant-band ROI re-inference for small targets (`small_target_enhance`). |
+| `onnx` | YOLO11s ONNX | ONNX Runtime with a pluggable execution provider (`domain_controller.inference_backend`). |
+
+The ONNX backend is the hardware-agnostic path: the same `.onnx` graph runs on
+CPU, CUDA, TensorRT, ARM ACL, or CoreML without changing the SDK code path.
+
+## Hardware abstraction layer
+
+`sdk/hal/` defines the plugin seams that make the SDK hardware-agnostic.
+
+- `ISensorAdapter` — `init`, `start`, `stop`, `grab`, `health`. Pull-mode is the
+  default so streams stay deterministic and replayable. `ReplaySensorAdapter`
+  plays recorded frames behind the same interface a live driver would.
+- `IInferenceBackend` — the inference seam (aliased as `IBackend`). Exposes
+  `info()` returning `BackendInfo` (name, model, device, telemetry).
+- `IMiddlewareAdapter` — `init`, `publish`, `subscribe`, `stop`. Shields ROS2 /
+  DDS / SOME-IP / private-bus differences. `JsonLineMiddlewareAdapter` publishes
+  one JSON object per line.
+
+## Validation gate
+
+`sdk/validate.py` runs seven semantic checks before the pipeline starts, ordered
+per the technical-architecture document. `to_report()` renders a JSON report and
+`scripts/validate_json.py --out preflight_report.json` writes it to disk.
+
+| Check | Purpose |
+|---|---|
+| `time_sync` | single master clock across sensors |
+| `extrinsics` | every sensor declares a `mount` |
+| `interface` | sensor type -> physical interface contract |
+| `bandwidth` | aggregate per-type data rate vs. budget |
+| `fov` | ROI is non-zero; redundant forward coverage when required |
+| `resource` | backend vs. controller compute budget |
+| `safety` | speed, latency, and braking-distance bounds |
+
+## Demo server
+
+`server.py` exposes a FastAPI application that runs the pipeline in a daemon
+thread and streams the latest frame.
+
+| Endpoint | Description |
+|---|---|
+| `GET /` | single-page dashboard |
+| `WS /ws` | streams `{ frame, image }` (image is base64 JPEG) |
+| `GET /api/state` | backend + liveness |
+| `GET /api/metrics` | runtime telemetry |
+| `POST /api/switch` | switch `offline` / `enhanced` / `onnx` at runtime |
+
+## VS Code extension
+
+`vscode-extension/` provides:
+
+- **Config form** — a schema-driven webview form for editing the manifest, with
+  live preflight validation and `@ai-lock` sections rendered read-only.
+- **Dashboard** — a webview panel for live backend switching and status.
+
+## Development
+
+```bash
+python scripts/export_schema.py docs/schema    # regenerate JSON Schema
+python scripts/validate_json.py config/robot.demo.yaml --out preflight_report.json
+python scripts/config_io.py get config/robot.demo.yaml       # config -> JSON
+python scripts/config_io.py set config/robot.demo.yaml       # JSON -> config (stdin)
+python -m pytest tests/                                      # 18 tests
+```
+
+The SDK is installable as `pip install -e .` with extras `.[ml]`, `.[server]`,
+and `.[dev]`. `pyproject.toml` is the single packaging source. Commit messages
+follow Conventional Commits and are written in English.
+
+## License
+
+Apache-2.0. See [LICENSE](LICENSE).
+
+## Documentation
+
+Product documents (business plan, technical architecture, patent FTO, financial
+model, demo plan) live in the `perception-sdk` workspace and are the source of
+truth for the SDK's target architecture.
