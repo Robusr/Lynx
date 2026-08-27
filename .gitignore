@@ -5,6 +5,7 @@ venv/
 models/
 data/frames/
 data/index.csv
+data/annotations/
 data/*.mp4
 *.onnx
 *.pt
