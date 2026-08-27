@@ -31,6 +31,7 @@ class EnhancedBackend(IBackend):
         big_weights: str = "yolo11x.pt",
         roi_weights: str = "yolo11s.pt",
         conf: float = 0.25,
+        roi_conf: float = 0.25,
         device: Optional[str] = None,
         roi_top_ratio: float = 0.4,
         roi_scale: float = 2.0,
@@ -39,6 +40,7 @@ class EnhancedBackend(IBackend):
         self.big_weights = big_weights
         self.roi_weights = roi_weights
         self.conf = conf
+        self.roi_conf = roi_conf
         self.device = device
         self.roi_top_ratio = roi_top_ratio
         self.roi_scale = roi_scale
@@ -71,7 +73,7 @@ class EnhancedBackend(IBackend):
             fy=self.roi_scale,
             interpolation=cv2.INTER_LINEAR,
         )
-        dets = predict_detections(self._roi, up, self.conf, self.device)
+        dets = predict_detections(self._roi, up, self.roi_conf, self.device)
         for d in dets:
             if d.bbox_2d is not None:
                 d.bbox_2d.x /= self.roi_scale

@@ -20,7 +20,7 @@ class VehicleConfig(BaseModel):
 
 class DomainControllerConfig(BaseModel):
     model: str = "laptop"
-    inference_backend: str = "onnx_cpu"
+    inference_backend: str = "onnx_cpu"  # onnx_cpu | onnx_cuda | tensorrt | onnx_acl | onnx_coreml
 
 
 class SensorConfig(BaseModel):
@@ -36,7 +36,8 @@ class SensorConfig(BaseModel):
 
 
 class PerceptionConfig(BaseModel):
-    backend: str = "offline"  # offline | enhanced
+    backend: str = "offline"  # offline | enhanced | onnx
+    conf: float = 0.4  # detection confidence threshold (primary/full-frame pass)
     modules: List[str] = Field(default_factory=lambda: ["detection", "tracking", "traffic_sign"])
     roi: Dict[str, float] = Field(
         default_factory=lambda: {"forward_m": 60.0, "lateral_m": 15.0}
