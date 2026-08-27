@@ -113,8 +113,8 @@
           "type": "object"
         },
         "small_target_enhance": {
-          "default": false,
-          "description": "Small-target re-inference (enhanced backend).",
+          "default": true,
+          "description": "Small-target ROI re-inference pass (enhanced backend only; ignored by offline/onnx).",
           "title": "Small Target Enhance",
           "type": "boolean"
         }

@@ -36,6 +36,7 @@ class EnhancedBackend(IBackend):
         roi_top_ratio: float = 0.4,
         roi_scale: float = 2.0,
         merge_iou: float = 0.45,
+        small_target_enhance: bool = True,
     ):
         self.big_weights = big_weights
         self.roi_weights = roi_weights
@@ -45,6 +46,7 @@ class EnhancedBackend(IBackend):
         self.roi_top_ratio = roi_top_ratio
         self.roi_scale = roi_scale
         self.merge_iou = merge_iou
+        self.small_target_enhance = small_target_enhance
         self._big = None
         self._roi = None
 
@@ -54,6 +56,8 @@ class EnhancedBackend(IBackend):
 
     def detect(self, image: np.ndarray) -> List[Detection]:
         primary = predict_detections(self._big, image, self.conf, self.device)
+        if not self.small_target_enhance:
+            return primary
         extra = self._reinfer_distant(image)
         return merge_detections(primary, extra, iou_thresh=self.merge_iou)
 

@@ -64,7 +64,10 @@ class PerceptionConfig(_Config):
         default_factory=lambda: {"forward_m": 60.0, "lateral_m": 15.0},
         description="Region of interest around the ego vehicle (meters).",
     )
-    small_target_enhance: bool = Field(default=False, description="Small-target re-inference (enhanced backend).")
+    small_target_enhance: bool = Field(
+        default=True,
+        description="Small-target ROI re-inference pass (enhanced backend only; ignored by offline/onnx).",
+    )
 
 
 class OutputConfig(_Config):

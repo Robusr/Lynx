@@ -29,7 +29,7 @@ perception:
   conf: 0.4                       # detection confidence threshold
   modules: [detection, tracking, traffic_sign]
   roi: { forward_m: 60, lateral_m: 15 }
-  small_target_enhance: false     # enabled by the enhanced backend
+  small_target_enhance: true      # enhanced backend only — extra ROI pass for small/distant targets
 
 output:
   frame_id: "base_link"

@@ -33,7 +33,11 @@ def build_backend(cfg: RobotConfig) -> IBackend:
     conf = cfg.perception.conf
     backend = cfg.perception.backend
     if backend == "enhanced":
-        return EnhancedBackend(conf=conf, device=device)
+        return EnhancedBackend(
+            conf=conf,
+            device=device,
+            small_target_enhance=cfg.perception.small_target_enhance,
+        )
     if backend == "onnx":
         return OnnxBackend(conf=conf)
     return OfflineBackend(conf=conf, device=device)

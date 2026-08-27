@@ -58,14 +58,29 @@ def _check_fov(cfg: RobotConfig) -> Check:
     return Check("fov", "pass", f"ROI forward {forward}m, lateral {roi.get('lateral_m', 0)}m")
 
 
+# Coarse budget heuristic (not a profiled number): the enhanced backend runs
+# YOLO11x plus a second ROI pass, so it is heavy. OfflineBackend's docstring
+# documents it as the fleet/fallback backend for exactly this reason — embedded
+# controllers are unlikely to hold enhanced at demo latency. A full version maps
+# measured FLOPs/VRAM against the controller budget.
+_HEAVY_BACKENDS = {"enhanced"}
+_EMBEDDED_CONTROLLERS = {"jetson_orin_nano", "rk3588"}
+
+
 def _check_resource(cfg: RobotConfig) -> Check:
-    # Demo-grade: enhanced backend implies a heavier model. Full version maps model
-    # FLOPs/memory against the domain controller budget.
     backend = cfg.perception.backend
+    controller = cfg.domain_controller.model
+    if backend in _HEAVY_BACKENDS and controller in _EMBEDDED_CONTROLLERS:
+        return Check(
+            "resource",
+            "warn",
+            f"backend={backend} (YOLO11x + ROI) on {controller} may exceed the "
+            f"compute budget; prefer offline/onnx",
+        )
     return Check(
         "resource",
         "pass",
-        f"backend={backend}, controller={cfg.domain_controller.model}, "
+        f"backend={backend}, controller={controller}, "
         f"inference={cfg.domain_controller.inference_backend}",
     )
 

@@ -12,6 +12,7 @@ interface JsonResult {
   error?: string;
   config?: Record<string, unknown>;
   checks?: Array<{ name: string; severity: string; message: string }>;
+  ai_lock?: string[];
 }
 
 interface PanelContext {
@@ -84,7 +85,7 @@ export class ConfigPanel {
       { enableScripts: true, retainContextWhenHidden: true },
     );
     ConfigPanel.current = new ConfigPanel(panel, { root, python, configPath }, onSaved);
-    panel.webview.html = buildHtml(extensionPath, schema, result.config);
+    panel.webview.html = buildHtml(extensionPath, schema, result.config, result.ai_lock ?? ["safety"]);
   }
 
   private async onMessage(msg: { type: string; json?: Record<string, unknown> }): Promise<void> {
@@ -171,10 +172,16 @@ function runPythonJson(
   });
 }
 
-function buildHtml(extensionPath: string, schema: string, config: Record<string, unknown>): string {
+function buildHtml(
+  extensionPath: string,
+  schema: string,
+  config: Record<string, unknown>,
+  aiLock: string[],
+): string {
   const html = fs.readFileSync(path.join(extensionPath, "media", "config-form.html"), "utf-8");
   return html
     .replaceAll("__NONCE__", nonce())
     .replace("__SCHEMA__", schema)
-    .replace("__CONFIG__", JSON.stringify(config).replaceAll("</", "<\\/"));
+    .replace("__CONFIG__", JSON.stringify(config).replaceAll("</", "<\\/"))
+    .replace("__AI_LOCK__", JSON.stringify(aiLock));
 }

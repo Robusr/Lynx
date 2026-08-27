@@ -26,6 +26,15 @@ from sdk.validate import validate
 
 DEFAULT_CONFIG = Path(__file__).resolve().parents[1] / "config" / "robot.demo.yaml"
 
+# Top-level config sections marked `@ai-lock` — tooling (form / CLI) treats them
+# as read-only; only a human editing the YAML may change them. This list is the
+# single source of truth and is mirrored by the form's read-only rendering.
+AI_LOCK_SECTIONS = ["safety"]
+
+
+class AiLockError(Exception):
+    """Tooling attempted to change an @ai-lock (read-only) section."""
+
 
 def _print(obj: dict) -> None:
     print(json.dumps(obj, ensure_ascii=False))
@@ -38,7 +47,7 @@ def _resolve_path(argv: list) -> Path:
 def cmd_get(path: Path) -> None:
     try:
         cfg = load_config(str(path))
-        _print({"ok": True, "config": cfg.model_dump()})
+        _print({"ok": True, "config": cfg.model_dump(), "ai_lock": AI_LOCK_SECTIONS})
     except Exception as exc:  # IO or structural (pydantic) error
         _print({"ok": False, "error": str(exc)})
 
@@ -57,17 +66,49 @@ def cmd_set(path: Path) -> None:
     try:
         obj = json.load(sys.stdin)
         cfg = RobotConfig.model_validate(obj)
+        _guard_ai_lock(path, cfg)
         path.write_text(_dump_yaml(cfg), encoding="utf-8")
         _print({"ok": True})
+    except AiLockError as exc:
+        _print({"ok": False, "error": str(exc)})
     except Exception as exc:
         _print({"ok": False, "error": str(exc)})
 
 
+def _guard_ai_lock(path: Path, cfg: RobotConfig) -> None:
+    """Reject writes that change an @ai-lock section.
+
+    The baseline is whatever is currently on disk (not the code defaults) — a
+    human may have hand-tuned the safety block, and the form must preserve it.
+    If there is no valid baseline (e.g. first write), there is nothing to protect.
+    """
+    try:
+        current = load_config(str(path))
+    except Exception:
+        return
+    changed = [
+        name
+        for name in AI_LOCK_SECTIONS
+        if getattr(current, name).model_dump() != getattr(cfg, name).model_dump()
+    ]
+    if changed:
+        raise AiLockError(
+            "@ai-lock section(s) are read-only via tooling: "
+            + ", ".join(changed)
+            + ". Edit the YAML directly to change them."
+        )
+
+
 def _dump_yaml(cfg: RobotConfig) -> str:
     # Regenerating the whole file drops hand-written inline comments; re-add the
-    # two that matter (header + the @ai-lock read-only marker on `safety`).
+    # two that matter (header + the @ai-lock read-only marker on each locked section).
     body = yaml.safe_dump(cfg.model_dump(), sort_keys=False, allow_unicode=True)
-    body = body.replace("safety:", "# @ai-lock — validator treats these as read-only\nsafety:", 1)
+    for name in AI_LOCK_SECTIONS:
+        body = body.replace(
+            f"{name}:",
+            f"# @ai-lock — validator treats these as read-only\n{name}:",
+            1,
+        )
     return '# robot config — edited via "Lynx: Edit Config (Form)"\n' + body
 
 
