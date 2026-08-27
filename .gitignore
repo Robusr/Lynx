@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+models/
+data/frames/
+data/index.csv
+*.onnx
+*.pt
+*.pcd
+*.engine
+.DS_Store
