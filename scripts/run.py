@@ -25,8 +25,10 @@ def main() -> None:
     )
     cfg = load_config(cfg_path)
     print(summarize(validate(cfg)))
-    print(f"\nStarting demo server (backend={cfg.perception.backend}) → http://127.0.0.1:8000")
-    uvicorn.run("server:app", host="0.0.0.0", port=8000, reload=False)
+    host = os.environ.get("LYNX_HOST", "0.0.0.0")
+    port = int(os.environ.get("LYNX_PORT", "8000"))
+    print(f"\nStarting demo server (backend={cfg.perception.backend}) → http://{host}:{port}")
+    uvicorn.run("server:app", host=host, port=port, reload=False)
 
 
 if __name__ == "__main__":
