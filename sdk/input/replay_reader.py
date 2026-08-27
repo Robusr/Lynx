@@ -16,10 +16,17 @@ import numpy as np
 
 @dataclass
 class FrameBatch:
+    """Time-aligned frame bundle for one perception tick.
+
+    Demo subset of the doc's FrameBatch (§3.1): a single camera + optional lidar
+    array stand in for the doc's `cams[]/lidars[]/radars[]/imus[]` vectors, which
+    arrive with real multi-sensor drivers (M2).
+    """
     stamp_ns: int
     camera: Optional[np.ndarray] = None
     lidar: Optional[np.ndarray] = None
     frame_name: str = ""
+    frame_id: str = ""  # source sensor frame (e.g. "camera"); output frame is cfg.output.frame_id
 
 
 class ReplayReader:
@@ -65,6 +72,9 @@ class ReplayReader:
         if not path.exists():
             return None
         return cv2.imread(str(path))
+
+    def __len__(self) -> int:
+        return len(self._entries)
 
     def __iter__(self) -> "ReplayReader":
         return self

@@ -16,6 +16,7 @@ def _make_cfg() -> RobotConfig:
             SensorConfig(
                 name="front_cam",
                 type="camera",
+                interface="usb",
                 mount={"x": 0, "y": 0, "z": 1.4, "roll": 0, "pitch": 0, "yaw": 0},
             )
         ],

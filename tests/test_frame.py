@@ -1,14 +1,15 @@
 """Contract tests for the standardized output schema (the product's data model)."""
-from sdk.output.frame import BBox2D, Detection, PerceptionFrame, Track
+from sdk.output.frame import BBox2D, Detection, PerceptionFrame, SourceMask, Track
 
 
 def test_detection_defaults():
     d = Detection(cls_id=0, cls_name="person", confidence=0.9)
     assert d.bbox_2d is None
     assert d.bbox_3d is None
-    assert d.source == "camera"
+    assert d.source == SourceMask.CAMERA
     assert d.occlusion_ratio == 0.0
     assert d.small_target_score == 0.0
+    assert d.type.value == "pedestrian"  # auto-derived from cls_name
 
 
 def test_track_inherits_detection_and_adds_id():

@@ -1,7 +1,7 @@
 """Unit tests for the in-process runtime metrics collector."""
 
 from sdk.metrics import Metrics
-from sdk.output.frame import BBox2D, PerceptionFrame, Track
+from sdk.output.frame import BBox2D, PerceptionFrame, SourceMask, Track
 
 
 def _frame(objects, latency: float = 10.0, backend: str = "offline") -> PerceptionFrame:
@@ -14,14 +14,14 @@ def _frame(objects, latency: float = 10.0, backend: str = "offline") -> Percepti
     )
 
 
-def _track(track_id: int, source: str) -> Track:
+def _track(track_id: int, source: SourceMask) -> Track:
     return Track(
         track_id=track_id,
-        cls_id=-1 if source == "lidar" else 2,
-        cls_name="obstacle" if source == "lidar" else "car",
+        cls_id=-1 if source == SourceMask.LIDAR else 2,
+        cls_name="obstacle" if source == SourceMask.LIDAR else "car",
         confidence=0.9,
         source=source,
-        bbox_2d=None if source == "lidar" else BBox2D(x=0, y=0, w=10, h=10),
+        bbox_2d=None if source == SourceMask.LIDAR else BBox2D(x=0, y=0, w=10, h=10),
     )
 
 
@@ -47,7 +47,11 @@ def test_accumulates_frames_and_latency():
 
 def test_counts_sources_and_objects():
     m = Metrics()
-    m.record(_frame([_track(1, "fusion"), _track(2, "camera"), _track(3, "lidar")]))
+    m.record(_frame([
+        _track(1, SourceMask.CAMERA | SourceMask.LIDAR),
+        _track(2, SourceMask.CAMERA),
+        _track(3, SourceMask.LIDAR),
+    ]))
     s = m.snapshot()
     assert s["objects"]["last"] == 3
     assert s["objects"]["sources"] == {"fusion": 1, "camera": 1, "lidar": 1}

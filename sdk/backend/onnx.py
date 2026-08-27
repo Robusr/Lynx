@@ -21,6 +21,7 @@ import numpy as np
 from sdk.backend.base import IBackend
 from sdk.config import RobotConfig
 from sdk.geometry import nms
+from sdk.hal.base import BackendInfo
 from sdk.output.frame import BBox2D, Detection, SourceMask
 
 # COCO 80-class names, indexed by class id — the same order `model.names`
@@ -168,6 +169,9 @@ class OnnxBackend(IBackend):
         tensor, scale, left, top = _letterbox(image, self.input_size)
         out = self._session.run([self._output_name], {self._input_name: tensor})[0]
         return nms(_decode(out, scale, left, top, self.conf), iou_thresh=0.45)
+
+    def info(self) -> BackendInfo:
+        return BackendInfo(name=self.name, model=self.weights, device=self.ep)
 
     def release(self) -> None:
         self._session = None

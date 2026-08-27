@@ -26,14 +26,28 @@ class VehicleConfig(_Config):
         default="ackermann", description="Kinematic model."
     )
     max_speed_ms: float = Field(default=5.0, description="Speed ceiling in m/s; safety checks reject <= 0.")
+    wheelbase_m: float = Field(default=1.8, description="Wheelbase in m (kinematic/geometry; no runtime consumer yet).")
+    track_width_m: float = Field(default=1.4, description="Track width in m (geometry; no runtime consumer yet).")
+    dimensions: Dict[str, float] = Field(
+        default_factory=lambda: {"l": 2.4, "w": 1.3, "h": 1.9},
+        description="Vehicle envelope l/w/h in m (geometry; no runtime consumer yet).",
+    )
 
 
 class DomainControllerConfig(_Config):
+    vendor: Literal["nvidia", "horizon", "ti", "qualcomm", "blacksesame", "rockchip"] = Field(
+        default="nvidia", description="Chip vendor (drives resource/consistency checks)."
+    )
     model: Literal["laptop", "jetson_orin_nano", "rk3588"] = Field(
         default="laptop", description="Onboard compute target (drives resource-budget checks)."
     )
+    compute_tops: float = Field(default=0.0, description="INT8 TOPS, advisory for the resource budget (0 = unspecified).")
     inference_backend: Literal["onnx_cpu", "onnx_cuda", "tensorrt", "onnx_acl", "onnx_coreml"] = Field(
         default="onnx_cpu", description="Inference execution provider for the ONNX backend."
+    )
+    os: str = Field(default="ubuntu_22.04", description="Controller OS image.")
+    middleware: Literal["ros2_humble", "ros2_iron", "dds_rti", "some_ip", "custom"] = Field(
+        default="custom", description="Middleware transport (feeds IMiddlewareAdapter)."
     )
 
 
@@ -92,6 +106,20 @@ class DataConfig(_Config):
     index_path: Optional[str] = Field(default=None, description="Frame index CSV; optional.")
 
 
+class CalibrationConfig(_Config):
+    """Calibration artifacts (intrinsics/extrinsics/time-offset) for CalibStore.
+
+    Paths are contract fields; the CalibStore loader (and ISensorAdapter.init's
+    `calib` argument) is a later milestone, so these are declared but not yet read.
+    """
+    camera_intrinsics: Optional[str] = Field(default=None, description="Per-camera intrinsic calibration file.")
+    extrinsics: Optional[str] = Field(default=None, description="Sensor extrinsics file (merged with mount).")
+    lidar_camera_extrinsic: Optional[str] = Field(default=None, description="Lidar↔camera extrinsic file.")
+    time_offset_ms: Dict[str, float] = Field(
+        default_factory=dict, description="Per-sensor time offset in ms (sync compensation)."
+    )
+
+
 class RobotConfig(_Config):
     schema_version: str = Field(default="1.0", description="Manifest schema version.")
     vehicle: VehicleConfig = Field(description="Vehicle description.")
@@ -99,6 +127,7 @@ class RobotConfig(_Config):
     sensors: List[SensorConfig] = Field(default_factory=list, description="Sensor suite (camera/lidar/...).")
     perception: PerceptionConfig = Field(default_factory=PerceptionConfig, description="Perception configuration.")
     output: OutputConfig = Field(default_factory=OutputConfig, description="Output / publish configuration.")
+    calibration: CalibrationConfig = Field(default_factory=CalibrationConfig, description="Calibration artifacts.")
     safety: SafetyConfig = Field(default_factory=SafetyConfig, description="Safety bounds.")
     data: DataConfig = Field(default_factory=DataConfig, description="Replay data source.")
 

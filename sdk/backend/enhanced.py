@@ -20,6 +20,7 @@ from sdk.backend._yolo import load_yolo, predict_detections
 from sdk.backend.base import IBackend
 from sdk.config import RobotConfig
 from sdk.geometry import merge_detections
+from sdk.hal.base import BackendInfo
 from sdk.output.frame import Detection
 
 
@@ -86,6 +87,14 @@ class EnhancedBackend(IBackend):
                 d.bbox_2d.h /= self.roi_scale
                 d.small_target_score = d.confidence
         return dets
+
+    def info(self) -> BackendInfo:
+        return BackendInfo(
+            name=self.name,
+            model=f"{self.big_weights}+{self.roi_weights} (ROI)",
+            device=self.device or "cpu",
+            extra={"small_target_enhance": self.small_target_enhance},
+        )
 
     def release(self) -> None:
         self._big = None

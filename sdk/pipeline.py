@@ -16,7 +16,9 @@ from sdk.config import RobotConfig, load_config
 from sdk.fusion.fuse import fuse_camera_lidar
 from sdk.fusion.lidar import synthetic_lidar
 from sdk.fusion.tracker import SimpleTracker
-from sdk.input.replay_reader import ReplayReader
+from sdk.hal.base import MiddlewareConfig
+from sdk.hal.middleware import IMiddlewareAdapter, JsonLineMiddlewareAdapter
+from sdk.hal.sensor import ISensorAdapter, ReplaySensorAdapter
 from sdk.metrics import Metrics
 from sdk.output.frame import PerceptionFrame, TrafficSign, Track
 from sdk.validate import summarize, validate
@@ -43,6 +45,31 @@ def build_backend(cfg: RobotConfig) -> IBackend:
     return OfflineBackend(conf=conf, device=device)
 
 
+def build_sensor_adapter(cfg: RobotConfig) -> ISensorAdapter:
+    """Return the input adapter for the configured sensor suite.
+
+    The demo has a single replay source (a camera stream); a production build maps
+    each sensor entry to its own adapter and merges them into one FrameBatch.
+    """
+    adapter = ReplaySensorAdapter()
+    adapter.init(cfg.data)
+    return adapter
+
+
+def build_middleware_adapter(cfg: RobotConfig) -> IMiddlewareAdapter:
+    """Return the publish adapter for cfg.domain_controller.middleware.
+
+    Only "custom" (NDJSON) is implemented in the demo; ROS2/DDS/etc. raise
+    NotImplementedError until those transports land (M4).
+    """
+    mw = cfg.domain_controller.middleware
+    if mw == "custom":
+        adapter = JsonLineMiddlewareAdapter()
+        adapter.init(MiddlewareConfig(middleware=mw, topic="perception"))
+        return adapter
+    raise NotImplementedError(f"middleware={mw!r} transport not implemented yet")
+
+
 def _inference_device(cfg: RobotConfig) -> str:
     return {
         "onnx_cpu": "cpu",
@@ -62,11 +89,13 @@ def run(
     stop=None,
     max_frames: Optional[int] = None,
     metrics: Optional[Metrics] = None,
+    middleware: Optional[IMiddlewareAdapter] = None,
 ) -> None:
     """Run the perception loop until the stream ends, `stop` is set, or `max_frames` reached.
 
     `max_frames` bounds the loop for smoke tests / CI (a real deploy leaves it None).
     `metrics`, if given, records every emitted frame for telemetry.
+    `middleware`, if given, publishes each frame through an IMiddlewareAdapter.
     """
     checks = validate(cfg)
     print(summarize(checks))
@@ -76,15 +105,20 @@ def run(
 
     backend = build_backend(cfg)
     backend.init(cfg)
+    info = backend.info()
+    print(f"backend: {info.name} (model={info.model}, device={info.device})")
 
-    reader = ReplayReader(cfg.data.frames_dir, cfg.data.index_path, loop=True)
+    adapter = build_sensor_adapter(cfg)
+    adapter.start()
+    health = adapter.health()
+    print(f"sensor: {adapter.name} (status={health.status}, {health.message})")
     tracker = SimpleTracker()
     rate = cfg.output.rate_hz
     period = 1.0 / rate if rate > 0 else 0.0
 
     n = 0
     try:
-        for batch in reader:
+        for batch in adapter:
             if stop is not None and stop.is_set():
                 break
             image = batch.camera
@@ -125,10 +159,13 @@ def run(
                 latency_ms=latency_ms,
             )
             on_frame(frame, image)
+            if middleware is not None:
+                middleware.publish(frame)
             if metrics is not None:
                 metrics.record(frame)
 
             if period > 0:
                 time.sleep(period)
     finally:
+        adapter.stop()
         backend.release()

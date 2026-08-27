@@ -1,5 +1,60 @@
 {
   "$defs": {
+    "CalibrationConfig": {
+      "additionalProperties": false,
+      "description": "Calibration artifacts (intrinsics/extrinsics/time-offset) for CalibStore.\n\nPaths are contract fields; the CalibStore loader (and ISensorAdapter.init's\n`calib` argument) is a later milestone, so these are declared but not yet read.",
+      "properties": {
+        "camera_intrinsics": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Per-camera intrinsic calibration file.",
+          "title": "Camera Intrinsics"
+        },
+        "extrinsics": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Sensor extrinsics file (merged with mount).",
+          "title": "Extrinsics"
+        },
+        "lidar_camera_extrinsic": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Lidar↔camera extrinsic file.",
+          "title": "Lidar Camera Extrinsic"
+        },
+        "time_offset_ms": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "description": "Per-sensor time offset in ms (sync compensation).",
+          "title": "Time Offset Ms",
+          "type": "object"
+        }
+      },
+      "title": "CalibrationConfig",
+      "type": "object"
+    },
     "DataConfig": {
       "additionalProperties": false,
       "properties": {
@@ -29,6 +84,20 @@
     "DomainControllerConfig": {
       "additionalProperties": false,
       "properties": {
+        "vendor": {
+          "default": "nvidia",
+          "description": "Chip vendor (drives resource/consistency checks).",
+          "enum": [
+            "nvidia",
+            "horizon",
+            "ti",
+            "qualcomm",
+            "blacksesame",
+            "rockchip"
+          ],
+          "title": "Vendor",
+          "type": "string"
+        },
         "model": {
           "default": "laptop",
           "description": "Onboard compute target (drives resource-budget checks).",
@@ -39,6 +108,12 @@
           ],
           "title": "Model",
           "type": "string"
+        },
+        "compute_tops": {
+          "default": 0.0,
+          "description": "INT8 TOPS, advisory for the resource budget (0 = unspecified).",
+          "title": "Compute Tops",
+          "type": "number"
         },
         "inference_backend": {
           "default": "onnx_cpu",
@@ -51,6 +126,25 @@
             "onnx_coreml"
           ],
           "title": "Inference Backend",
+          "type": "string"
+        },
+        "os": {
+          "default": "ubuntu_22.04",
+          "description": "Controller OS image.",
+          "title": "Os",
+          "type": "string"
+        },
+        "middleware": {
+          "default": "custom",
+          "description": "Middleware transport (feeds IMiddlewareAdapter).",
+          "enum": [
+            "ros2_humble",
+            "ros2_iron",
+            "dds_rti",
+            "some_ip",
+            "custom"
+          ],
+          "title": "Middleware",
           "type": "string"
         }
       },
@@ -256,6 +350,26 @@
           "description": "Speed ceiling in m/s; safety checks reject <= 0.",
           "title": "Max Speed Ms",
           "type": "number"
+        },
+        "wheelbase_m": {
+          "default": 1.8,
+          "description": "Wheelbase in m (kinematic/geometry; no runtime consumer yet).",
+          "title": "Wheelbase M",
+          "type": "number"
+        },
+        "track_width_m": {
+          "default": 1.4,
+          "description": "Track width in m (geometry; no runtime consumer yet).",
+          "title": "Track Width M",
+          "type": "number"
+        },
+        "dimensions": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "description": "Vehicle envelope l/w/h in m (geometry; no runtime consumer yet).",
+          "title": "Dimensions",
+          "type": "object"
         }
       },
       "required": [
@@ -296,6 +410,10 @@
     "output": {
       "$ref": "#/$defs/OutputConfig",
       "description": "Output / publish configuration."
+    },
+    "calibration": {
+      "$ref": "#/$defs/CalibrationConfig",
+      "description": "Calibration artifacts."
     },
     "safety": {
       "$ref": "#/$defs/SafetyConfig",

@@ -4,10 +4,17 @@ vehicle:
   name: "demo_factory_truck"
   type: "ackermann"
   max_speed_ms: 5.0
+  wheelbase_m: 1.8
+  track_width_m: 1.4
+  dimensions: { l: 2.4, w: 1.3, h: 1.9 }
 
 domain_controller:
+  vendor: "nvidia"                # nvidia | horizon | ti | qualcomm | blacksesame | rockchip
   model: "laptop"                 # laptop | jetson_orin_nano | rk3588
+  compute_tops: 0                 # advisory INT8 TOPS; 0 = unspecified for the dev laptop
   inference_backend: "onnx_cpu"   # onnx_cpu | onnx_cuda | tensorrt | onnx_acl | onnx_coreml
+  os: "ubuntu_22.04"
+  middleware: "custom"            # ros2_humble | ros2_iron | dds_rti | some_ip | custom
 
 sensors:
   - name: "front_cam"
@@ -36,6 +43,12 @@ perception:
 output:
   frame_id: "base_link"
   rate_hz: 10
+
+calibration:                      # contract fields; loaded by CalibStore (later milestone)
+  camera_intrinsics: null         # e.g. "calib/front_cam_intrinsic.yaml"
+  extrinsics: null
+  lidar_camera_extrinsic: null
+  time_offset_ms: {}              # { sensor_name: ms }
 
 safety:                           # @ai-lock — validator treats these as read-only
   min_braking_distance_m: 1.0

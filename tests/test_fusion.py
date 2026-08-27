@@ -3,7 +3,7 @@
 from sdk.camera import Pinhole
 from sdk.fusion.fuse import fuse_camera_lidar
 from sdk.fusion.lidar import synthetic_lidar
-from sdk.output.frame import BBox2D, BBox3D, Detection
+from sdk.output.frame import BBox2D, BBox3D, Detection, SourceMask
 
 
 def _cam() -> Pinhole:
@@ -39,25 +39,25 @@ def test_project_behind_is_nan():
 def test_fuse_associates_overlapping_box():
     cam = _cam()
     lidar_box = BBox3D(x=10.0, y=0.0, z=0.75, l=4.5, w=1.8, h=1.5, yaw=0.0)
-    lidar_det = Detection(cls_id=-1, cls_name="obstacle", bbox_3d=lidar_box, confidence=0.9, source="lidar")
+    lidar_det = Detection(cls_id=-1, cls_name="obstacle", bbox_3d=lidar_box, confidence=0.9, source=SourceMask.LIDAR)
     b2 = cam.project_box(lidar_box)
-    cam_det = Detection(cls_id=2, cls_name="car", bbox_2d=b2, confidence=0.9, source="camera")
+    cam_det = Detection(cls_id=2, cls_name="car", bbox_2d=b2, confidence=0.9, source=SourceMask.CAMERA)
 
     fused = fuse_camera_lidar([cam_det], [lidar_det], cam)
     assert len(fused) == 1
-    assert fused[0].source == "fusion"
+    assert fused[0].source == (SourceMask.CAMERA | SourceMask.LIDAR)
     assert fused[0].cls_name == "car"
     assert fused[0].bbox_2d is not None and fused[0].bbox_3d is not None
 
 
 def test_fuse_keeps_unmatched_detections():
     cam = _cam()
-    cam_det = Detection(cls_id=2, cls_name="car", bbox_2d=BBox2D(x=10, y=10, w=50, h=40), confidence=0.9, source="camera")
-    lidar_det = Detection(cls_id=-1, cls_name="obstacle", bbox_3d=BBox3D(x=10, y=0, z=0.75, l=4.5, w=1.8, h=1.5, yaw=0.0), confidence=0.9, source="lidar")
+    cam_det = Detection(cls_id=2, cls_name="car", bbox_2d=BBox2D(x=10, y=10, w=50, h=40), confidence=0.9, source=SourceMask.CAMERA)
+    lidar_det = Detection(cls_id=-1, cls_name="obstacle", bbox_3d=BBox3D(x=10, y=0, z=0.75, l=4.5, w=1.8, h=1.5, yaw=0.0), confidence=0.9, source=SourceMask.LIDAR)
 
     fused = fuse_camera_lidar([cam_det], [lidar_det], cam)
     assert len(fused) == 2  # both survive, unmatched
-    assert {d.source for d in fused} == {"camera", "lidar"}
+    assert {d.source for d in fused} == {SourceMask.CAMERA, SourceMask.LIDAR}
 
 
 def test_synthetic_lidar_back_projects_every_camera_box():
@@ -68,7 +68,7 @@ def test_synthetic_lidar_back_projects_every_camera_box():
     ]
     lidar = synthetic_lidar(cam_dets, cam)
     assert len(lidar) == 2
-    assert all(d.source == "lidar" and d.bbox_3d is not None for d in lidar)
+    assert all(d.source == SourceMask.LIDAR and d.bbox_3d is not None for d in lidar)
     # a taller object at a given 2D height is further away than a short one
     car_depth = lidar[0].bbox_3d.x
     person_depth = lidar[1].bbox_3d.x

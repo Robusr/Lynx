@@ -13,6 +13,7 @@ import numpy as np
 from sdk.backend._yolo import load_yolo, predict_detections
 from sdk.backend.base import IBackend
 from sdk.config import RobotConfig
+from sdk.hal.base import BackendInfo
 from sdk.output.frame import Detection
 
 
@@ -35,6 +36,9 @@ class OfflineBackend(IBackend):
 
     def detect(self, image: np.ndarray) -> List[Detection]:
         return predict_detections(self._model, image, self.conf, self.device)
+
+    def info(self) -> BackendInfo:
+        return BackendInfo(name=self.name, model=self.weights, device=self.device or "cpu")
 
     def release(self) -> None:
         self._model = None
