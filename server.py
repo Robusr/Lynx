@@ -3,6 +3,7 @@
 - `GET  /`            → dashboard (single-page HTML)
 - `WS   /ws`          → streams {frame: PerceptionFrame, image: base64 JPEG}
 - `GET  /api/state`   → backend + liveness
+- `GET  /api/metrics` → runtime telemetry (latency / throughput / sources)
 - `POST /api/switch`  → flip offline ↔ enhanced at runtime
 
 The pipeline runs in a daemon thread; the server only holds the latest frame and
@@ -26,6 +27,7 @@ from pydantic import BaseModel
 
 from sdk import pipeline
 from sdk.config import load_config
+from sdk.metrics import Metrics
 from sdk.output.frame import PerceptionFrame
 
 REPO = Path(__file__).resolve().parent
@@ -67,6 +69,7 @@ class PerceptionService:
         self.thread: threading.Thread | None = None
         self.latest: dict | None = None
         self.latest_jpeg: str | None = None
+        self.metrics = Metrics()
 
     @property
     def backend(self) -> str:
@@ -85,7 +88,10 @@ class PerceptionService:
     def start(self) -> None:
         self.stop.clear()
         self.thread = threading.Thread(
-            target=pipeline.run, args=(self.cfg, self._on_frame, self.stop), daemon=True
+            target=pipeline.run,
+            args=(self.cfg, self._on_frame, self.stop),
+            kwargs={"metrics": self.metrics},
+            daemon=True,
         )
         self.thread.start()
 
@@ -119,6 +125,11 @@ async def index():
 async def state():
     running = service.thread is not None and service.thread.is_alive()
     return {"backend": service.backend, "running": running, "has_frame": service.latest is not None}
+
+
+@app.get("/api/metrics")
+async def metrics():
+    return service.metrics.snapshot()
 
 
 class SwitchRequest(BaseModel):

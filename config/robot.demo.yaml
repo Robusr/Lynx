@@ -7,7 +7,7 @@ vehicle:
 
 domain_controller:
   model: "laptop"                 # laptop | jetson_orin_nano | rk3588
-  inference_backend: "onnx_cpu"   # onnx_cpu | onnx_cuda | tensorrt
+  inference_backend: "onnx_cpu"   # onnx_cpu | onnx_cuda | tensorrt | onnx_acl | onnx_coreml
 
 sensors:
   - name: "front_cam"
@@ -17,15 +17,16 @@ sensors:
     mount: { x: 0.0, y: 0.0, z: 1.4, roll: 0, pitch: 0, yaw: 0 }
     fps: 20
     sync_source: "software"
-  # - name: "front_lidar"          # enable for the full-feature demo
-  #   type: "lidar"
-  #   model: "demo_replay_lidar"
-  #   topic: "lidar/front"
-  #   mount: { x: 0.1, y: 0.0, z: 1.3, roll: 0, pitch: 0, yaw: 0 }
-  #   sync_source: "pps"
+  - name: "front_lidar"            # enables late fusion (synthetic in the demo)
+    type: "lidar"
+    model: "demo_replay_lidar"
+    topic: "lidar/front"
+    mount: { x: 0.1, y: 0.0, z: 1.3, roll: 0, pitch: 0, yaw: 0 }
+    sync_source: "software"
 
 perception:
-  backend: "offline"              # offline | enhanced   (config-level switch)
+  backend: "offline"              # offline | enhanced | onnx   (config-level switch)
+  conf: 0.4                       # detection confidence threshold
   modules: [detection, tracking, traffic_sign]
   roi: { forward_m: 60, lateral_m: 15 }
   small_target_enhance: false     # enabled by the enhanced backend
