@@ -3,6 +3,7 @@ import { LynxSession } from "./session";
 import { LynxClient } from "./client";
 import { DashboardPanel } from "./webview";
 import { runValidate, toDiagnostics } from "./diagnostics";
+import { ConfigPanel } from "./configForm";
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -162,6 +163,25 @@ export function activate(context: vscode.ExtensionContext): void {
     }
   };
 
+  const refreshDiagnostics = async () => {
+    const rootUri = LynxSession.resolveRoot();
+    if (!rootUri) {
+      return;
+    }
+    const configUri = vscode.Uri.joinPath(rootUri, "config", "robot.demo.yaml");
+    const python = LynxSession.resolvePython(rootUri.fsPath);
+    const result = await runValidate(rootUri.fsPath, python, configUri.fsPath);
+    const doc = await vscode.workspace.openTextDocument(configUri);
+    diagnostics.set(configUri, toDiagnostics(result, doc));
+  };
+
+  const editConfig = () => {
+    void ConfigPanel.show(context.extensionPath, () => {
+      out.appendLine("[lynx] config saved via form");
+      void refreshDiagnostics();
+    });
+  };
+
   const refresh = () => {
     // Show the status-bar item only when the workspace is the Lynx repo
     // (or lynx.workspacePath points at it). Re-runs when folders change, so
@@ -183,6 +203,17 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("lynx.switchBackend", switchBackend),
     vscode.commands.registerCommand("lynx.openConfig", openConfig),
     vscode.commands.registerCommand("lynx.validateConfig", validateConfig),
+    vscode.commands.registerCommand("lynx.editConfig", editConfig),
+    vscode.workspace.onDidSaveTextDocument((doc) => {
+      const rootUri = LynxSession.resolveRoot();
+      if (
+        rootUri &&
+        doc.uri.fsPath === vscode.Uri.joinPath(rootUri, "config", "robot.demo.yaml").fsPath &&
+        ConfigPanel.isOpen
+      ) {
+        ConfigPanel.refresh();
+      }
+    }),
     vscode.commands.registerCommand("lynx.showDashboard", async () => {
       if (!session.running) {
         await start();

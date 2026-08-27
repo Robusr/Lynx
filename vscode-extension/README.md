@@ -27,6 +27,7 @@ is opened, and a `▶ Lynx: start` item appears in the status bar.
 | Switch backend | `Lynx: Switch Backend` | QuickPick over offline / enhanced / onnx → `POST /api/switch` |
 | Status bar | click the `🐆 Lynx` item | start/stop toggle; live `backend · avg-latency · fps` |
 | Open config | `Lynx: Open Config` | opens `config/robot.demo.yaml` |
+| Edit config (form) | `Lynx: Edit Config (Form)` | schema-driven form webview; writes back to `robot.demo.yaml` |
 
 ## Configuration
 
@@ -43,6 +44,18 @@ is opened, and a `▶ Lynx: start` item appears in the status bar.
 
 Regenerate the schema after config model changes:
 `cd .. && python scripts/export_schema.py docs/schema` then copy the result here.
+
+## Config editor (form)
+
+`Lynx: Edit Config (Form)` opens a schema-driven form webview for
+`config/robot.demo.yaml`. The form is generated from
+`schemas/robot_config.schema.json` (the same schema used for YAML validation),
+so enum fields render as dropdowns and `description`s as help text. Edits are
+validated live against the SDK (`scripts/config_io.py check`, no disk writes)
+and written back to YAML on **Save** (`scripts/config_io.py set`).
+
+The form never parses YAML itself — YAML↔JSON round-tripping stays in Python
+where the pydantic model lives, so the form and the raw YAML stay in sync.
 
 ## Notes
 

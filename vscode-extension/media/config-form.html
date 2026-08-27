@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-__NONCE__';" />
+  <title>Lynx Config</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font-family: -apple-system, "Segoe UI", "PingFang SC", sans-serif;
+      background: #0d1117; color: #c9d1d9; display: flex; flex-direction: column; height: 100vh;
+    }
+    header {
+      display: flex; align-items: center; gap: 12px; padding: 10px 16px;
+      background: #161b22; border-bottom: 1px solid #30363d;
+    }
+    header h1 { font-size: 16px; margin: 0; font-weight: 600; }
+    .file { color: #8b949e; font-size: 12px; font-family: monospace; }
+    .spacer { flex: 1; }
+    .status { font-size: 12px; color: #8b949e; }
+    #summary { padding: 0 16px; display: flex; flex-direction: column; gap: 6px; }
+    .banner {
+      font-size: 12px; padding: 6px 12px; border-radius: 6px; border: 1px solid #30363d;
+      margin-top: 10px; background: #161b22;
+    }
+    .banner.ok { border-color: #238636; color: #3fb950; }
+    .banner.warn { border-color: #9e6a03; color: #d29922; }
+    .banner.err { border-color: #da3633; color: #f85149; }
+    main { flex: 1; overflow-y: auto; padding: 16px; }
+    fieldset.section {
+      border: 1px solid #30363d; border-radius: 8px; background: #161b22;
+      padding: 12px 16px; margin: 0 0 12px;
+    }
+    fieldset.section > legend { font-size: 13px; font-weight: 600; padding: 0 6px; }
+    .group-title { font-size: 13px; font-weight: 600; margin: 0 0 8px; color: #c9d1d9; }
+    .desc { color: #8b949e; font-size: 12px; margin: 0 0 10px; }
+    .field { margin-bottom: 10px; }
+    .field-label { display: block; font-size: 12px; color: #8b949e; margin-bottom: 4px; }
+    .field-label .req { color: #f85149; }
+    .hint { display: block; color: #6e7681; font-size: 11px; margin-top: 3px; }
+    input[type=text], input[type=number], select {
+      width: 100%; background: #0d1117; color: #c9d1d9; border: 1px solid #30363d;
+      border-radius: 6px; padding: 6px 8px; font-size: 13px;
+    }
+    input:focus, select:focus { outline: none; border-color: #1f6feb; }
+    input[type=checkbox] { width: 16px; height: 16px; accent-color: #1f6feb; }
+    .dict-grid { margin-bottom: 10px; }
+    .dict-label { font-size: 12px; color: #8b949e; }
+    .dict-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; margin-top: 4px; }
+    .dict-fields .field { margin-bottom: 0; }
+    .card {
+      border: 1px solid #30363d; border-radius: 8px; padding: 12px; margin-bottom: 10px;
+      background: #0d1117;
+    }
+    .card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+    .card-head .name { font-size: 13px; font-weight: 600; color: #58a6ff; font-family: monospace; }
+    .string-item { display: flex; gap: 8px; margin-bottom: 6px; }
+    .string-item input { flex: 1; }
+    button {
+      background: #21262d; color: #c9d1d9; border: 1px solid #30363d;
+      border-radius: 6px; padding: 5px 12px; cursor: pointer; font-size: 12px;
+    }
+    button:hover { background: #30363d; }
+    button.primary { background: #1f6feb; border-color: #1f6feb; color: #fff; }
+    button.primary:hover { background: #388bfd; }
+    button.mini { padding: 2px 8px; font-size: 11px; }
+    button.danger { color: #f85149; }
+    button.add { margin-top: 6px; color: #58a6ff; border-style: dashed; }
+    footer {
+      display: flex; align-items: center; gap: 10px; padding: 10px 16px;
+      background: #161b22; border-top: 1px solid #30363d;
+    }
+    .muted { color: #8b949e; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🐆 Config</h1>
+    <span class="file">config/robot.demo.yaml</span>
+    <span class="spacer"></span>
+    <span class="status" id="status">编辑后自动校验 · 保存写回 YAML</span>
+  </header>
+  <div id="summary"></div>
+  <main id="form"></main>
+  <footer>
+    <span class="muted" id="hint">* = 必填 · 改动会实时校验</span>
+    <span class="spacer"></span>
+    <button id="refresh">刷新</button>
+    <button id="save" class="primary">保存</button>
+  </footer>
+
+  <script nonce="__NONCE__">
+    (function () {
+      const SCHEMA = __SCHEMA__;
+      const vscode = acquireVsCodeApi();
+      const $defs = SCHEMA.$defs || {};
+
+      // Known number-dict fields -> fixed grids (better UX than a generic k/v editor).
+      const DICT_KEYS = { mount: ["x", "y", "z", "roll", "pitch", "yaw"], roi: ["forward_m", "lateral_m"] };
+
+      let state = JSON.parse(JSON.stringify(__CONFIG__));
+      let debounce;
+
+      // --- DOM helpers ---
+      function el(tag, attrs, text) {
+        const n = document.createElement(tag);
+        if (attrs) for (const k in attrs) { if (attrs[k] !== undefined && attrs[k] !== null) n.setAttribute(k, attrs[k]); }
+        if (text !== undefined) n.textContent = text;
+        return n;
+      }
+      function resolve(s) { return s && s.$ref ? $defs[s.$ref.split("/").pop()] : s; }
+
+      // --- state ---
+      function getAt(path) {
+        if (!path) return state;
+        let o = state;
+        for (const p of path.split(".")) o = o[p];
+        return o;
+      }
+      function setPath(path, value) {
+        const parts = path.split(".");
+        let o = state;
+        for (let i = 0; i < parts.length - 1; i++) o = o[parts[i]];
+        o[parts[parts.length - 1]] = value;
+        scheduleValidate();
+      }
+      function defaultValue(schema) {
+        const s = resolve(schema);
+        if (s.default !== undefined) return JSON.parse(JSON.stringify(s.default));
+        if (s.enum) return s.enum[0];
+        if (s.type === "object" && s.properties) {
+          const o = {};
+          for (const k of Object.keys(s.properties)) o[k] = defaultValue(s.properties[k]);
+          return o;
+        }
+        if (s.type === "object") return {};
+        if (s.type === "array") return [];
+        if (s.type === "boolean") return false;
+        if (s.type === "number") return 0;
+        if (s.anyOf) return null;
+        return "";
+      }
+
+      // --- validation / messages ---
+      function scheduleValidate() {
+        clearTimeout(debounce);
+        debounce = setTimeout(doValidate, 300);
+      }
+      function doValidate() { vscode.postMessage({ type: "validate", json: state }); }
+      const ICONS = { error: "✗", warn: "!", pass: "✓" };
+      function showValidation(r) {
+        const s = document.getElementById("summary");
+        s.innerHTML = "";
+        if (!r.ok) {
+          s.appendChild(el("div", { class: "banner err" }, "校验失败：" + (r.error || "未知错误")));
+          return;
+        }
+        for (const c of r.checks || []) {
+          const cls = c.severity === "error" ? "err" : c.severity === "warn" ? "warn" : "ok";
+          s.appendChild(el("div", { class: "banner " + cls }, ICONS[c.severity] + " " + c.name + " — " + c.message));
+        }
+      }
+
+      // --- renderers ---
+      function labeled(text, control, description, required) {
+        const f = el("div", { class: "field" });
+        const lab = el("label", { class: "field-label" });
+        if (required) lab.appendChild(el("span", { class: "req" }, "* "));
+        lab.appendChild(document.createTextNode(text));
+        f.appendChild(lab);
+        f.appendChild(control);
+        if (description) f.appendChild(el("small", { class: "hint" }, description));
+        return f;
+      }
+
+      function renderScalar(key, s, value, path, required) {
+        let control;
+        if (s.enum) {
+          control = el("select", {});
+          for (const opt of s.enum) {
+            const o = el("option", { value: opt }, opt);
+            if (opt === value) o.selected = true;
+            control.appendChild(o);
+          }
+          control.onchange = () => setPath(path, control.value);
+        } else if (s.type === "boolean") {
+          control = el("input", { type: "checkbox" });
+          control.checked = !!value;
+          control.onchange = () => setPath(path, control.checked);
+        } else if (s.type === "number") {
+          control = el("input", { type: "number", step: "any", value: value });
+          control.oninput = () => setPath(path, control.value === "" ? 0 : parseFloat(control.value));
+        } else {
+          control = el("input", { type: "text", value: value ?? "" });
+          control.oninput = () => setPath(path, control.value);
+        }
+        return labeled(key, control, s.description, required);
+      }
+
+      function renderNullable(key, s, value, path) {
+        const row = el("div", { class: "string-item" });
+        const control = el("input", { type: "text", value: value ?? "", placeholder: "(optional)" });
+        control.oninput = () => setPath(path, control.value === "" ? null : control.value);
+        row.appendChild(control);
+        const clear = el("button", { class: "mini" }, "清除");
+        clear.onclick = () => { control.value = ""; setPath(path, null); };
+        row.appendChild(clear);
+        return labeled(key, row, s.description, false);
+      }
+
+      function renderNumberDict(key, value, path) {
+        const wrap = el("div", { class: "dict-grid" });
+        wrap.appendChild(el("div", { class: "dict-label" }, key));
+        const grid = el("div", { class: "dict-fields" });
+        const keys = DICT_KEYS[key] || Object.keys(value || {});
+        for (const k of keys) {
+          const v = value && value[k] !== undefined ? value[k] : 0;
+          grid.appendChild(renderScalar(k, { type: "number" }, v, path + "." + k, false));
+        }
+        wrap.appendChild(grid);
+        return wrap;
+      }
+
+      function renderStringItem(v, path) {
+        const row = el("div", { class: "string-item" });
+        const input = el("input", { type: "text", value: v });
+        input.oninput = () => setPath(path, input.value);
+        row.appendChild(input);
+        const rm = el("button", { class: "mini danger" }, "×");
+        rm.onclick = () => { const arr = getAt(path.replace(/\.\d+$/, "")); arr.splice(parseInt(path.split(".").pop(), 10), 1); render(); };
+        row.appendChild(rm);
+        return row;
+      }
+
+      function renderObjectItem(schema, value, path) {
+        const card = el("div", { class: "card" });
+        const head = el("div", { class: "card-head" });
+        head.appendChild(el("span", { class: "name" }, value.name || "sensor"));
+        const rm = el("button", { class: "mini danger" }, "移除");
+        rm.onclick = () => { const arr = getAt(path.replace(/\.\d+$/, "")); arr.splice(parseInt(path.split(".").pop(), 10), 1); render(); };
+        head.appendChild(rm);
+        card.appendChild(head);
+        card.appendChild(renderObjectFields(schema, value, path));
+        return card;
+      }
+
+      function renderArray(key, s, value, path) {
+        const wrap = el("div", {});
+        wrap.appendChild(el("h3", { class: "group-title" }, s.title || key));
+        if (s.description) wrap.appendChild(el("p", { class: "desc" }, s.description));
+        const items = resolve(s.items);
+        const list = el("div", {});
+        const arr = value || [];
+        if (items.type === "string") {
+          arr.forEach((v, i) => list.appendChild(renderStringItem(v, path + "." + i)));
+        } else {
+          arr.forEach((v, i) => list.appendChild(renderObjectItem(items, v, path + "." + i)));
+        }
+        wrap.appendChild(list);
+        const add = el("button", { class: "add" }, "+ 添加");
+        add.onclick = () => { getAt(path).push(defaultValue(items)); render(); };
+        wrap.appendChild(add);
+        return wrap;
+      }
+
+      function renderNested(key, s, desc, value, path) {
+        const wrap = el("div", {});
+        wrap.appendChild(el("h3", { class: "group-title" }, s.title || key));
+        if (desc) wrap.appendChild(el("p", { class: "desc" }, desc));
+        wrap.appendChild(renderObjectFields(s, value, path));
+        return wrap;
+      }
+
+      function renderObjectFields(schema, value, path) {
+        const s = resolve(schema);
+        const sec = el("fieldset", { class: "section" });
+        if (s.title) sec.appendChild(el("legend", {}, s.title));
+        const required = new Set(s.required || []);
+        const props = s.properties || {};
+        for (const key of Object.keys(props)) {
+          const sub = props[key];
+          const r = resolve(sub);
+          const p = path ? path + "." + key : key;
+          if (r.type === "array") sec.appendChild(renderArray(key, r, value[key], p));
+          else if (r.type === "object" && r.additionalProperties) sec.appendChild(renderNumberDict(key, value[key], p));
+          else if (r.type === "object" && r.properties) sec.appendChild(renderNested(key, r, sub.description, value[key], p));
+          else if (r.anyOf) sec.appendChild(renderNullable(key, r, value[key], p));
+          else sec.appendChild(renderScalar(key, r, value[key], p, required.has(key)));
+        }
+        return sec;
+      }
+
+      function render() {
+        document.getElementById("form").innerHTML = "";
+        document.getElementById("form").appendChild(renderObjectFields(SCHEMA, state, ""));
+      }
+
+      // --- wiring ---
+      document.getElementById("save").onclick = () => vscode.postMessage({ type: "save", json: state });
+      document.getElementById("refresh").onclick = () => vscode.postMessage({ type: "refresh" });
+
+      window.addEventListener("message", (e) => {
+        const msg = e.data;
+        if (msg.type === "validation") showValidation(msg.result);
+        else if (msg.type === "saved") {
+          document.getElementById("status").textContent = msg.ok ? "已保存 ✓" : "保存失败：" + (msg.error || "");
+        } else if (msg.type === "refreshed") {
+          state = JSON.parse(JSON.stringify(msg.config));
+          render();
+          document.getElementById("status").textContent = "已刷新";
+        }
+      });
+
+      render();
+      doValidate();
+    })();
+  </script>
+</body>
+</html>

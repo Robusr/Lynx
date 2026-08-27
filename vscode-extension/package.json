@@ -70,14 +70,25 @@
         "command": "lynx.validateConfig",
         "title": "Lynx: Validate Config",
         "category": "Lynx"
+      },
+      {
+        "command": "lynx.editConfig",
+        "title": "Lynx: Edit Config (Form)",
+        "category": "Lynx",
+        "icon": "$(edit)"
       }
     ],
     "menus": {
       "editor/title": [
         {
-          "command": "lynx.openConfig",
+          "command": "lynx.editConfig",
           "when": "resourceFilename =~ /robot.*\\.yaml$/",
           "group": "navigation@1"
+        },
+        {
+          "command": "lynx.openConfig",
+          "when": "resourceFilename =~ /robot.*\\.yaml$/",
+          "group": "navigation@2"
         }
       ]
     },
