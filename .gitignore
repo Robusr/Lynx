@@ -12,3 +12,4 @@ data/*.mp4
 *.pcd
 *.engine
 .DS_Store
+.idea/
