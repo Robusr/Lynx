@@ -41,8 +41,11 @@ def _inference_device(cfg: RobotConfig) -> str:
     }.get(cfg.domain_controller.inference_backend, "cpu")
 
 
-def run(cfg: RobotConfig, on_frame: OnFrame, stop=None) -> None:
-    """Run the perception loop until the stream ends or `stop` is set."""
+def run(cfg: RobotConfig, on_frame: OnFrame, stop=None, max_frames: Optional[int] = None) -> None:
+    """Run the perception loop until the stream ends, `stop` is set, or `max_frames` reached.
+
+    `max_frames` bounds the loop for smoke tests / CI (a real deploy leaves it None).
+    """
     checks = validate(cfg)
     print(summarize(checks))
     if any(c.severity == "error" for c in checks):
@@ -57,6 +60,7 @@ def run(cfg: RobotConfig, on_frame: OnFrame, stop=None) -> None:
     rate = cfg.output.rate_hz
     period = 1.0 / rate if rate > 0 else 0.0
 
+    n = 0
     try:
         for batch in reader:
             if stop is not None and stop.is_set():
@@ -64,6 +68,9 @@ def run(cfg: RobotConfig, on_frame: OnFrame, stop=None) -> None:
             image = batch.camera
             if image is None:
                 continue
+            if max_frames is not None and n >= max_frames:
+                break
+            n += 1
 
             t0 = time.perf_counter()
             detections = backend.detect(image)
