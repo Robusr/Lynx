@@ -1,7 +1,7 @@
 # Lynx — 低速封闭园区无人车感知融合算法 SDK
 
 Hardware-agnostic perception-fusion SDK for low-speed autonomous vehicles in
-enclosed parks (厂区 / 港口 / 园区 / 校园). One SDK, two backends, one
+enclosed parks (厂区 / 港口 / 园区 / 校园). One SDK, three backends, one
 standardized output.
 
 This repository is the **walking skeleton**: a vertical slice through every
@@ -18,8 +18,9 @@ thrown away after the roadshow.
 
 ```
 config ──▶ sdk.config ──▶ sdk.validate ──▶ sdk.backend ──▶ sdk.fusion ──▶ sdk.output
- (YAML)      (pydantic)     (semantic)      (offline/       (tracker)      (PerceptionFrame)
-                                             enhanced)                      → FastAPI → dashboard
+ (YAML)      (pydantic)     (semantic)      (offline/       (tracker +     (PerceptionFrame)
+                                             enhanced/        lidar fusion) → FastAPI → dashboard
+                                             onnx)
 ```
 
 ## Repo layout
@@ -31,13 +32,17 @@ sdk/                     the SDK (no FastAPI/UI here)
   validate.py            deployment preflight checks
   geometry.py            IoU / NMS / merge (dependency-light)
   output/frame.py        PerceptionFrame — the product contract
-  backend/               IBackend + offline + enhanced (+ lazy YOLO glue)
+  backend/               IBackend + offline + enhanced + onnx (+ lazy YOLO glue)
   input/replay_reader.py replay data source
+  camera.py              pinhole model — the 3D↔2D bridge for fusion
+  metrics.py             in-process telemetry (latency / throughput / sources)
   fusion/tracker.py      SORT-lite tracker
-  pipeline.py            run(): config → validate → detect → track → emit
+  fusion/fuse.py         camera↔lidar late fusion (2D IoU association)
+  fusion/lidar.py        synthetic lidar (demo seed — no hardware)
+  pipeline.py            run(): config → validate → detect → track → fuse → emit
 server.py                FastAPI + WebSocket demo
 dashboard/index.html     single-page dashboard
-scripts/                 run / smoke / make_demo_data / make_index / frames_to_video / export_models / export_schema
+scripts/                 run / smoke / benchmark / make_demo_data / make_index / fetch_demo_data / frames_to_video / export_models / export_schema
 docs/schema/             generated JSON Schema (PerceptionFrame + config)
 tests/                   contract + validator tests
 ```
@@ -87,12 +92,15 @@ config-level switch:
 
 ```yaml
 perception:
-  backend: "offline"   # offline | enhanced
+  backend: "offline"   # offline | enhanced | onnx
 ```
 
 - **offline** — single YOLO11s pass, CPU-friendly. The deployed fleet default.
 - **enhanced** — YOLO11x full-frame + ROI re-inference (distant band upscale +
   merge) for small/distant targets. The AI large-model edition.
+- **onnx** — the same YOLO11s graph on ONNX Runtime with a pluggable execution
+  provider (`domain_controller.inference_backend`: onnx_cpu / onnx_cuda /
+  tensorrt / onnx_acl / onnx_coreml). The hardware-agnostic path.
 
 ## Architecture notes
 
@@ -104,8 +112,16 @@ perception:
 - **Standardized output** — `PerceptionFrame` aligns with ASAM OpenLABEL /
   ISO 23150 conventions (2D + 3D boxes, track ids, velocity, occlusion,
   small-target score, traffic signs).
-- **Hardware-agnostic inference** — ONNX Runtime with pluggable execution
-  providers (CPU / CUDA / TensorRT / ARM ACL); the SDK code path never changes.
+- **Hardware-agnostic inference** — the `onnx` backend runs the same YOLO11 ONNX
+  graph on ONNX Runtime with pluggable execution providers (CPU / CUDA /
+  TensorRT / ARM ACL / CoreML); the SDK code path never changes. `scripts/benchmark.py`
+  measures the EP speedup on this host.
+- **Camera↔LiDAR late fusion** — when a `lidar` sensor is present in the config,
+  `pipeline.run()` projects LiDAR 3D boxes through the pinhole model and
+  associates them with camera 2D boxes by IoU (`sdk/fusion/fuse.py`). Matched
+  pairs become `source="fusion"` detections carrying both `bbox_2d` (class from
+  the camera) and `bbox_3d` (extent from the LiDAR); unmatched detections pass
+  through untouched. The demo uses synthetic LiDAR (see caveats).
 - **@ai-* annotations** in the config mark safety-critical, read-only blocks so
   AI agents (and future tooling) don't silently rewrite them.
 
@@ -114,6 +130,17 @@ perception:
 The dashboard's bird's-eye view estimates depth with the pinhole heuristic
 `depth ≈ focal / bbox_height`. That lives only in `dashboard/index.html`; the
 SDK itself emits 2D/3D boxes and never fabricates metric depth.
+
+**Synthetic LiDAR** — the demo replays no point cloud. `sdk/fusion/lidar.py`
+back-projects each camera box to a plausible 3D box (depth from the same height
+heuristic) to exercise the fusion path end-to-end. A production build swaps this
+for a real point-cloud clustering front-end; `fuse_camera_lidar` is unchanged.
+
+## Packaging & CI
+
+Installable as `pip install -e .` with extras `.[ml]`, `.[server]`, `.[dev]`.
+`pyproject.toml` is the single packaging source; `.github/workflows/ci.yml` runs
+the dependency-light test suite (`pytest`) on Python 3.11/3.12.
 
 ## Milestones
 
