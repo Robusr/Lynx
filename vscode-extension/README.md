@@ -13,8 +13,10 @@ npm install
 npm run compile
 ```
 
-Then press **F5** (Run Extension). In the Extension Development Host, open the
-Lynx repo (or set `lynx.workspacePath` to its absolute path).
+Then press **F5** (Run Extension). The Extension Development Host opens empty;
+**open the Lynx repo as a folder there** (`File → Open Folder…` → the repo root).
+The extension activates via `workspaceContains:scripts/run.py` when that folder
+is opened, and a `▶ Lynx: start` item appears in the status bar.
 
 ## What you get
 
@@ -28,7 +30,7 @@ Lynx repo (or set `lynx.workspacePath` to its absolute path).
 
 ## Configuration
 
-- `lynx.workspacePath` — absolute path to the Lynx repo (blank → first workspace folder).
+- `lynx.workspacePath` — absolute path to the Lynx repo (blank → auto-detect: the workspace folder containing `scripts/run.py`, else the first folder).
 - `lynx.pythonPath` — Python interpreter (blank → VS Code Python setting, then `<repo>/.venv/bin/python`).
 - `lynx.port` — preferred server port (default 8123; a free port is picked automatically).
 

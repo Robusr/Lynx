@@ -23,13 +23,16 @@ export class LynxSession {
     return `http://127.0.0.1:${this._port}`;
   }
 
-  /** Resolve the Lynx repo root: explicit setting, else the first workspace folder. */
+  /** Resolve the Lynx repo root: explicit setting, else the workspace folder
+   *  that actually contains the SDK entrypoint (multi-root safe). */
   static resolveRoot(): vscode.Uri | undefined {
     const configured = vscode.workspace.getConfiguration("lynx").get<string>("workspacePath", "");
     if (configured) {
       return vscode.Uri.file(configured);
     }
-    return vscode.workspace.workspaceFolders?.[0]?.uri;
+    const folders = vscode.workspace.workspaceFolders ?? [];
+    const lynx = folders.find((f) => fs.existsSync(path.join(f.uri.fsPath, "scripts", "run.py")));
+    return (lynx ?? folders[0])?.uri;
   }
 
   static isLynxWorkspace(root: vscode.Uri | undefined): boolean {

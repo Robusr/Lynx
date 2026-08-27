@@ -13,7 +13,7 @@
     "Visualization"
   ],
   "activationEvents": [
-    "onStartupFinished"
+    "workspaceContains:scripts/run.py"
   ],
   "main": "./dist/extension.js",
   "contributes": {

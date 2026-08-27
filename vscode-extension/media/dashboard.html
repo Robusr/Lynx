@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <!-- Derived from dashboard/index.html. __ORIGIN__ / __NONCE__ are injected by the extension. -->
   <meta http-equiv="Content-Security-Policy"
-    content="default-src 'none'; img-src data: blob:; style-src 'unsafe-inline'; script-src 'nonce-__NONCE__'; connect-src http://127.0.0.1:* ws://127.0.0.1:*;" />
+    content="default-src 'none'; img-src data: blob: http: https:; style-src 'unsafe-inline'; script-src 'nonce-__NONCE__'; connect-src http: https: ws: wss:;" />
   <title>Lynx Perception SDK — Demo</title>
   <style>
     :root { color-scheme: dark; }
@@ -154,6 +154,7 @@
         }
         renderFrame(msg.frame);
       };
+      ws.onerror = () => { statusEl.textContent = "⚠ ws error — server not reachable?"; };
       ws.onclose = () => { statusEl.textContent = "disconnected — retrying…"; setTimeout(connect, 2000); };
     }
 
