@@ -1,0 +1,248 @@
+{
+  "$defs": {
+    "BBox2D": {
+      "description": "Axis-aligned 2D box in image pixels (top-left origin).",
+      "properties": {
+        "x": {
+          "title": "X",
+          "type": "number"
+        },
+        "y": {
+          "title": "Y",
+          "type": "number"
+        },
+        "w": {
+          "title": "W",
+          "type": "number"
+        },
+        "h": {
+          "title": "H",
+          "type": "number"
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "w",
+        "h"
+      ],
+      "title": "BBox2D",
+      "type": "object"
+    },
+    "BBox3D": {
+      "description": "3D box in the vehicle frame (right-handed: forward-x, left-y, up-z).",
+      "properties": {
+        "x": {
+          "title": "X",
+          "type": "number"
+        },
+        "y": {
+          "title": "Y",
+          "type": "number"
+        },
+        "z": {
+          "title": "Z",
+          "type": "number"
+        },
+        "l": {
+          "title": "L",
+          "type": "number"
+        },
+        "w": {
+          "title": "W",
+          "type": "number"
+        },
+        "h": {
+          "title": "H",
+          "type": "number"
+        },
+        "yaw": {
+          "title": "Yaw",
+          "type": "number"
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "z",
+        "l",
+        "w",
+        "h",
+        "yaw"
+      ],
+      "title": "BBox3D",
+      "type": "object"
+    },
+    "Track": {
+      "description": "A tracked detection with a persistent id and velocity.",
+      "properties": {
+        "cls_id": {
+          "title": "Cls Id",
+          "type": "integer"
+        },
+        "cls_name": {
+          "title": "Cls Name",
+          "type": "string"
+        },
+        "bbox_2d": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BBox2D"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "bbox_3d": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BBox3D"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "confidence": {
+          "title": "Confidence",
+          "type": "number"
+        },
+        "source": {
+          "default": "camera",
+          "title": "Source",
+          "type": "string"
+        },
+        "occlusion_ratio": {
+          "default": 0.0,
+          "title": "Occlusion Ratio",
+          "type": "number"
+        },
+        "small_target_score": {
+          "default": 0.0,
+          "title": "Small Target Score",
+          "type": "number"
+        },
+        "track_id": {
+          "title": "Track Id",
+          "type": "integer"
+        },
+        "velocity": {
+          "default": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Velocity",
+          "type": "array"
+        }
+      },
+      "required": [
+        "cls_id",
+        "cls_name",
+        "confidence",
+        "track_id"
+      ],
+      "title": "Track",
+      "type": "object"
+    },
+    "TrafficSign": {
+      "description": "A detected traffic sign / light.",
+      "properties": {
+        "cls_name": {
+          "title": "Cls Name",
+          "type": "string"
+        },
+        "text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Text"
+        },
+        "bbox_2d": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BBox2D"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "confidence": {
+          "title": "Confidence",
+          "type": "number"
+        }
+      },
+      "required": [
+        "cls_name",
+        "confidence"
+      ],
+      "title": "TrafficSign",
+      "type": "object"
+    }
+  },
+  "description": "The standardized output frame published once per detection cycle.",
+  "properties": {
+    "stamp_ns": {
+      "title": "Stamp Ns",
+      "type": "integer"
+    },
+    "frame_id": {
+      "title": "Frame Id",
+      "type": "string"
+    },
+    "backend": {
+      "default": "offline",
+      "title": "Backend",
+      "type": "string"
+    },
+    "objects": {
+      "items": {
+        "$ref": "#/$defs/Track"
+      },
+      "title": "Objects",
+      "type": "array"
+    },
+    "traffic_signs": {
+      "items": {
+        "$ref": "#/$defs/TrafficSign"
+      },
+      "title": "Traffic Signs",
+      "type": "array"
+    },
+    "latency_ms": {
+      "default": 0.0,
+      "title": "Latency Ms",
+      "type": "number"
+    }
+  },
+  "required": [
+    "stamp_ns",
+    "frame_id"
+  ],
+  "title": "PerceptionFrame",
+  "type": "object"
+}
