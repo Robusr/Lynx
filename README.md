@@ -37,7 +37,7 @@ sdk/                     the SDK (no FastAPI/UI here)
   pipeline.py            run(): config → validate → detect → track → emit
 server.py                FastAPI + WebSocket demo
 dashboard/index.html     single-page dashboard
-scripts/                 run / make_demo_data / make_index / export_models / export_schema
+scripts/                 run / smoke / make_demo_data / make_index / frames_to_video / export_models / export_schema
 docs/schema/             generated JSON Schema (PerceptionFrame + config)
 tests/                   contract + validator tests
 ```
@@ -66,6 +66,7 @@ python scripts/export_schema.py docs/schema
 # 5. Run
 python scripts/run.py
 # → http://127.0.0.1:8000
+# LYNX_PORT=8001 python scripts/run.py   # if 8000 is taken
 ```
 
 To exercise the SDK headlessly (no ML needed) while you collect frames:
