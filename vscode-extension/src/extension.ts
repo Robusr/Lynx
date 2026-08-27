@@ -4,17 +4,12 @@ import { LynxClient } from "./client";
 import { DashboardPanel } from "./webview";
 
 export function activate(context: vscode.ExtensionContext): void {
-  // Dormant unless the workspace is the Lynx repo (or lynx.workspacePath points at it).
-  const root = LynxSession.resolveRoot();
-  if (!LynxSession.isLynxWorkspace(root)) {
-    return;
-  }
-
   const session = new LynxSession();
   context.subscriptions.push({ dispose: () => session.dispose() });
 
   const status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
   status.command = "lynx.toggle";
+  status.hide();
   context.subscriptions.push(status);
 
   let pollTimer: ReturnType<typeof setInterval> | undefined;
@@ -104,7 +99,21 @@ export function activate(context: vscode.ExtensionContext): void {
     await vscode.window.showTextDocument(doc);
   };
 
+  const refresh = () => {
+    // Show the status-bar item only when the workspace is the Lynx repo
+    // (or lynx.workspacePath points at it). Re-runs when folders change, so
+    // opening the repo after the host has started still activates the UI.
+    if (LynxSession.isLynxWorkspace(LynxSession.resolveRoot())) {
+      status.show();
+      setRunning(session.running);
+    } else {
+      status.hide();
+      stop();
+    }
+  };
+
   context.subscriptions.push(
+    vscode.workspace.onDidChangeWorkspaceFolders(refresh),
     vscode.commands.registerCommand("lynx.start", start),
     vscode.commands.registerCommand("lynx.stop", stop),
     vscode.commands.registerCommand("lynx.toggle", () => (session.running ? stop() : start())),
@@ -118,7 +127,7 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
   );
 
-  setRunning(false);
+  refresh();
 }
 
 export function deactivate(): void {}

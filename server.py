@@ -4,7 +4,7 @@
 - `WS   /ws`          → streams {frame: PerceptionFrame, image: base64 JPEG}
 - `GET  /api/state`   → backend + liveness
 - `GET  /api/metrics` → runtime telemetry (latency / throughput / sources)
-- `POST /api/switch`  → flip offline ↔ enhanced at runtime
+- `POST /api/switch`  → flip offline ↔ enhanced ↔ onnx at runtime
 
 The pipeline runs in a daemon thread; the server only holds the latest frame and
 broadcasts it. Annotation (drawing boxes) lives here, in the presentation layer —
@@ -133,12 +133,12 @@ async def metrics():
 
 
 class SwitchRequest(BaseModel):
-    backend: str  # offline | enhanced
+    backend: str  # offline | enhanced | onnx
 
 
 @app.post("/api/switch")
 async def switch(req: SwitchRequest):
-    if req.backend not in ("offline", "enhanced"):
+    if req.backend not in ("offline", "enhanced", "onnx"):
         return {"error": f"unknown backend {req.backend!r}"}
     service.switch(req.backend)
     return {"backend": service.backend}
