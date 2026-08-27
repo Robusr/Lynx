@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <!-- Derived from dashboard/index.html. __ORIGIN__ / __NONCE__ are injected by the extension. -->
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src 'none'; img-src data: blob:; style-src 'unsafe-inline'; script-src 'nonce-__NONCE__'; connect-src http://127.0.0.1:* ws://127.0.0.1:*;" />
+  <title>Lynx Perception SDK — Demo</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font-family: -apple-system, "Segoe UI", "PingFang SC", sans-serif;
+      background: #0d1117; color: #c9d1d9; display: flex; flex-direction: column; height: 100vh;
+    }
+    header {
+      display: flex; align-items: center; gap: 16px; padding: 10px 16px;
+      background: #161b22; border-bottom: 1px solid #30363d;
+    }
+    header h1 { font-size: 16px; margin: 0; font-weight: 600; }
+    header .spacer { flex: 1; }
+    .badge {
+      font-size: 12px; padding: 3px 10px; border-radius: 999px;
+      background: #1f6feb; color: #fff;
+    }
+    .badge.enhanced { background: #a371f7; }
+    button {
+      background: #21262d; color: #c9d1d9; border: 1px solid #30363d;
+      border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: 13px;
+    }
+    button:hover { background: #30363d; }
+    main { flex: 1; display: grid; grid-template-columns: 1fr 380px; gap: 12px; padding: 12px; min-height: 0; }
+    .panel {
+      background: #161b22; border: 1px solid #30363d; border-radius: 8px;
+      overflow: hidden; display: flex; flex-direction: column; min-height: 0;
+    }
+    .panel h2 { font-size: 13px; margin: 0; padding: 10px 14px; border-bottom: 1px solid #30363d; font-weight: 600; }
+    .camera-wrap { flex: 1; display: flex; align-items: center; justify-content: center; background: #000; min-height: 0; }
+    #cam { max-width: 100%; max-height: 100%; object-fit: contain; }
+    .side { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+    #bev { width: 100%; background: #0a0f14; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th, td { text-align: left; padding: 4px 10px; border-bottom: 1px solid #21262d; }
+    th { color: #8b949e; font-weight: 500; }
+    .obj-list { overflow-y: auto; }
+    .muted { color: #8b949e; font-size: 12px; padding: 10px 14px; }
+    .latency-ok { color: #3fb950; } .latency-warn { color: #d29922; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🐆 Lynx Perception SDK</h1>
+    <span class="badge" id="backend">offline</span>
+    <span class="muted" id="status">connecting…</span>
+    <span class="spacer"></span>
+    <button id="toggle">切换 enhanced / offline</button>
+  </header>
+
+  <main>
+    <section class="panel">
+      <h2>Camera · 相机视角</h2>
+      <div class="camera-wrap"><img id="cam" alt="camera" /></div>
+    </section>
+
+    <aside class="side">
+      <section class="panel">
+        <h2>Bird's-Eye View · 俯视（启发式深度）</h2>
+        <canvas id="bev" width="360" height="360"></canvas>
+      </section>
+      <section class="panel obj-list">
+        <h2>Objects · 目标</h2>
+        <table>
+          <thead><tr><th>ID</th><th>类别</th><th>置信度</th><th>速度 px/s</th></tr></thead>
+          <tbody id="objects"></tbody>
+        </table>
+        <div class="muted" id="latency">latency —</div>
+      </section>
+    </aside>
+  </main>
+
+  <script nonce="__NONCE__">
+    // Injected by the extension: the SDK server origin (http://127.0.0.1:PORT).
+    const ORIGIN = "__ORIGIN__";
+    const $ = (id) => document.getElementById(id);
+    const backendEl = $("backend"), statusEl = $("status"), camEl = $("cam");
+    const objectsEl = $("objects"), latencyEl = $("latency"), bev = $("bev");
+    const ctx = bev.getContext("2d");
+
+    // --- BEV heuristic (presentation-layer only) ---
+    const FOCAL = 500;          // px
+    const EGO_HEIGHT = 1.2;     // m (nominal obstacle height)
+    const ROI_FORWARD = 60, ROI_LATERAL = 15; // m, matches config
+
+    let backend = "offline";
+    let camWidth = 1280, camHeight = 720;
+
+    function toBEV(bbox, imgW, imgH) {
+      if (!bbox) return null;
+      const h = Math.max(bbox.h, 1);
+      const depth = Math.min(ROI_FORWARD, (FOCAL * EGO_HEIGHT) / h);
+      const cx = bbox.x + bbox.w / 2;
+      const lateral = ((cx - imgW / 2) / FOCAL) * depth;
+      return { depth, lateral };
+    }
+
+    function drawBEV(frame) {
+      ctx.clearRect(0, 0, bev.width, bev.height);
+      const cx = bev.width / 2, cy = bev.height / 2;
+      const pxPerM = Math.min(bev.width / (2 * ROI_LATERAL), bev.height / ROI_FORWARD);
+      ctx.fillStyle = "#3fb950";
+      ctx.fillRect(cx - 8, bev.height - 24, 16, 24);
+      if (!frame) return;
+      for (const o of frame.objects || []) {
+        const p = toBEV(o.bbox_2d, camWidth, camHeight);
+        if (!p) continue;
+        const x = cx + p.lateral * pxPerM;
+        const y = bev.height - p.depth * pxPerM;
+        ctx.fillStyle = o.cls_name.includes("person") ? "#d29922" : "#58a6ff";
+        ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#c9d1d9";
+        ctx.font = "10px monospace";
+        ctx.fillText(`#${o.track_id} ${o.cls_name} ${p.depth.toFixed(0)}m`, x + 6, y);
+      }
+    }
+
+    function renderFrame(frame) {
+      if (!frame) { statusEl.textContent = "waiting for frames…"; return; }
+      statusEl.textContent = `stamp ${frame.stamp_ns}`;
+      backendEl.textContent = frame.backend;
+      backendEl.classList.toggle("enhanced", frame.backend === "enhanced");
+      backend = frame.backend;
+
+      const rows = (frame.objects || []).map((o) => {
+        const [vx, vy] = o.velocity || [0, 0];
+        const speed = Math.hypot(vx, vy).toFixed(0);
+        return `<tr><td>${o.track_id}</td><td>${o.cls_name}</td><td>${o.confidence.toFixed(2)}</td><td>${speed}</td></tr>`;
+      });
+      objectsEl.innerHTML = rows.join("") || '<tr><td colspan="4" class="muted">无目标</td></tr>';
+
+      const ms = frame.latency_ms || 0;
+      const ok = ms <= 100;
+      latencyEl.innerHTML = `latency <span class="${ok ? "latency-ok" : "latency-warn"}">${ms.toFixed(1)} ms</span> · backend ${frame.backend}`;
+      drawBEV(frame);
+    }
+
+    let ws;
+    function connect() {
+      ws = new WebSocket(ORIGIN.replace(/^http/, "ws") + "/ws");
+      ws.onmessage = (e) => {
+        const msg = JSON.parse(e.data);
+        if (msg.image) {
+          camEl.src = "data:image/jpeg;base64," + msg.image;
+          camEl.onload = () => { camWidth = camEl.naturalWidth; camHeight = camEl.naturalHeight; };
+        }
+        renderFrame(msg.frame);
+      };
+      ws.onclose = () => { statusEl.textContent = "disconnected — retrying…"; setTimeout(connect, 2000); };
+    }
+
+    $("toggle").onclick = async () => {
+      const next = backend === "enhanced" ? "offline" : "enhanced";
+      await fetch(ORIGIN + "/api/switch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ backend: next }),
+      });
+      backendEl.textContent = next;
+    };
+
+    drawBEV(null);
+    connect();
+  </script>
+</body>
+</html>

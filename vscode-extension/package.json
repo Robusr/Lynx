@@ -1,0 +1,96 @@
+{
+  "name": "lynx-vscode",
+  "displayName": "Lynx Perception SDK",
+  "description": "Run and demo the Lynx perception-fusion SDK from inside VS Code.",
+  "version": "0.1.0",
+  "publisher": "lynx",
+  "license": "Apache-2.0",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other",
+    "Visualization"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "Lynx",
+      "properties": {
+        "lynx.workspacePath": {
+          "type": "string",
+          "default": "",
+          "description": "Absolute path to the Lynx repo (blank → first workspace folder)."
+        },
+        "lynx.pythonPath": {
+          "type": "string",
+          "default": "",
+          "description": "Python interpreter for the SDK (blank → VS Code Python setting, then <repo>/.venv/bin/python)."
+        },
+        "lynx.port": {
+          "type": "number",
+          "default": 8123,
+          "description": "Preferred port for the demo server."
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "lynx.start",
+        "title": "Lynx: Start Demo",
+        "category": "Lynx",
+        "icon": "$(play)"
+      },
+      {
+        "command": "lynx.stop",
+        "title": "Lynx: Stop",
+        "category": "Lynx",
+        "icon": "$(debug-stop)"
+      },
+      {
+        "command": "lynx.switchBackend",
+        "title": "Lynx: Switch Backend",
+        "category": "Lynx"
+      },
+      {
+        "command": "lynx.openConfig",
+        "title": "Lynx: Open Config",
+        "category": "Lynx"
+      },
+      {
+        "command": "lynx.showDashboard",
+        "title": "Lynx: Show Dashboard",
+        "category": "Lynx",
+        "icon": "$(open-preview)"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "lynx.openConfig",
+          "when": "resourceFilename =~ /robot.*\\.yaml$/",
+          "group": "navigation@1"
+        }
+      ]
+    },
+    "yamlValidation": [
+      {
+        "fileMatch": "robot*.yaml",
+        "url": "./schemas/robot_config.schema.json"
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.4.0"
+  }
+}
