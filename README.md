@@ -83,6 +83,18 @@ The two ends of the pipeline are plugin seams:
 - `IMiddlewareAdapter` (`sdk/hal/middleware.py`) publishes each `PerceptionFrame`
   to any transport. The demo ships `JsonLineMiddlewareAdapter` (NDJSON).
 
+### Module dependencies
+
+<p align="center">
+  <img src="docs/dependencies.png" alt="sdk/ module dependency graph" width="520">
+</p>
+
+Imports fan out from `pipeline.py` (`run()`) into three domain-service groups —
+`backend/`, `fusion/`, and `hal/` — while `validate.py` reads the manifest before
+the runtime services start. Two leaves are imported by nearly every module:
+`output/frame.py` (the `PerceptionFrame` data model) and `config.py` (the Pydantic
+schema). `input/replay_reader.py` supplies the demo's `FrameBatch` source.
+
 ## Repository layout
 
 ```
@@ -103,7 +115,7 @@ server.py                  FastAPI + WebSocket demo
 dashboard/index.html       single-page dashboard
 vscode-extension/          VS Code extension (config form + dashboard)
 scripts/                   run / smoke / benchmark / config_io / export_* / make_demo_data ...
-docs/                      diagrams (architecture, data model, validation, backends)
+docs/                      diagrams (architecture, dependencies, data model, validation, backends)
 docs/schema/               generated JSON Schema (config + PerceptionFrame)
 docs/images/               screenshots (config editor, dashboard, demo)
 tests/                     contract + validator tests

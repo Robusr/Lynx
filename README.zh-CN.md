@@ -76,6 +76,17 @@ Lynx 在硬件无关的插件接口背后，把原始传感器帧转化为标准
 - `IMiddlewareAdapter`（`sdk/hal/middleware.py`）把每个 `PerceptionFrame` 发布到任意
   传输层。演示自带 `JsonLineMiddlewareAdapter`（NDJSON）。
 
+### 模块依赖
+
+<p align="center">
+  <img src="docs/dependencies.png" alt="sdk/ 模块依赖图" width="520">
+</p>
+
+`pipeline.py`（`run()`）的 import 扇形发散到三个领域服务组——`backend/`、`fusion/`、
+`hal/`——而 `validate.py` 在运行时服务启动之前读取清单。两个叶子被几乎所有模块引用：
+`output/frame.py`（`PerceptionFrame` 数据模型）与 `config.py`（Pydantic schema）。
+`input/replay_reader.py` 提供演示的 `FrameBatch` 数据源。
+
 ## 仓库结构
 
 ```
@@ -96,7 +107,7 @@ server.py                  FastAPI + WebSocket 演示
 dashboard/index.html       单页看板
 vscode-extension/          VS Code 扩展（配置表单 + 看板）
 scripts/                   run / smoke / benchmark / config_io / export_* / make_demo_data ...
-docs/                      图表（架构、数据模型、验证、后端）
+docs/                      图表（架构、模块依赖、数据模型、验证、后端）
 docs/schema/               生成的 JSON Schema（config + PerceptionFrame）
 docs/images/               截图（配置编辑器、看板、演示）
 tests/                     契约 + 校验器测试
