@@ -19,6 +19,24 @@
 本仓库是 **行走骨架（walking skeleton）**：贯穿产品每一层的垂直切片，目标是打磨成
 生产级 SDK，而不是在演示结束后被丢弃。
 
+## 目录
+
+- [概览](#概览)
+- [特性](#特性)
+- [架构](#架构)
+- [仓库结构](#仓库结构)
+- [快速开始](#快速开始)
+- [配置](#配置)
+- [数据模型](#数据模型)
+- [后端](#后端)
+- [硬件抽象层](#硬件抽象层)
+- [验证门禁](#验证门禁)
+- [演示服务器](#演示服务器)
+- [VS Code 扩展](#vs-code-扩展)
+- [开发](#开发)
+- [许可证](#许可证)
+- [文档](#文档)
+
 ## 概览
 
 Lynx 在硬件无关的插件接口背后，把原始传感器帧转化为标准化的 `PerceptionFrame`
@@ -47,26 +65,9 @@ Lynx 在硬件无关的插件接口背后，把原始传感器帧转化为标准
 
 ## 架构
 
-```
-config/robot.demo.yaml        唯一事实源（YAML）
-        |
-        v
-   sdk.config                 Pydantic 模型，extra="forbid"
-        |
-        v
-   sdk.validate               7 项预检
-        |
-        v
-   sdk.backend                offline | enhanced | onnx  (IBackend)
-        |
-        v
-   sdk.fusion                 合成激光雷达 -> 相机-激光雷达融合 -> SimpleTracker
-        |
-        v
-   sdk.output                 PerceptionFrame（对齐 ASAM OpenLABEL / ISO 23150）
-        |
-        +----> FastAPI / WebSocket / NDJSON (IMiddlewareAdapter)
-```
+<p align="center">
+  <img src="docs/architecture.png" alt="Lynx 架构" width="520">
+</p>
 
 流水线两端都是插件接缝：
 
@@ -96,6 +97,7 @@ dashboard/index.html       单页看板
 vscode-extension/          VS Code 扩展（配置表单 + 看板）
 scripts/                   run / smoke / benchmark / config_io / export_* / make_demo_data ...
 docs/schema/               生成的 JSON Schema（config + PerceptionFrame）
+docs/architecture.png      流水线架构图
 tests/                     契约 + 校验器测试
 ```
 
@@ -282,6 +284,17 @@ CoreML 上运行，无需更改 SDK 代码路径。
   区块以只读方式渲染。
 - **看板** —— 用于后端实时切换与状态查看的 webview 面板。
 
+### 截图
+
+<p align="center">
+  <img src="可视化配置编辑.png" alt="配置编辑器" width="300">
+  <img src="实时状态看板.png" alt="状态看板" width="480">
+</p>
+
+<p align="center">
+  <img src="插件Dashboard演示.gif" alt="看板演示" width="540">
+</p>
+
 ## 开发
 
 ```bash
@@ -298,3 +311,8 @@ SDK 可通过 `pip install -e .` 安装，含可选依赖 `.[ml]`、`.[server]`�
 ## 许可证
 
 Apache-2.0。详见 [LICENSE](LICENSE)。
+
+## 文档
+
+产品文档（商业计划、技术架构、专利 FTO、财务模型、演示计划）位于 `perception-sdk`
+工作区，是 SDK 目标架构的事实来源。

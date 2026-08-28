@@ -21,6 +21,24 @@ This repository is the **walking skeleton**: a vertical slice through every laye
 of the product, built to be hardened into the production SDK rather than thrown
 away after the demo.
 
+## Table of contents
+
+- [Overview](#overview)
+- [Features](#features)
+- [Architecture](#architecture)
+- [Repository layout](#repository-layout)
+- [Quick start](#quick-start)
+- [Configuration](#configuration)
+- [Data model](#data-model)
+- [Backends](#backends)
+- [Hardware abstraction layer](#hardware-abstraction-layer)
+- [Validation gate](#validation-gate)
+- [Demo server](#demo-server)
+- [VS Code extension](#vs-code-extension)
+- [Development](#development)
+- [License](#license)
+- [Documentation](#documentation)
+
 ## Overview
 
 Lynx turns raw sensor frames into a standardized `PerceptionFrame` (detected and
@@ -53,26 +71,9 @@ middleware transport is swapped — only an adapter plugin is added.
 
 ## Architecture
 
-```
-config/robot.demo.yaml        single source of truth (YAML)
-        |
-        v
-   sdk.config                 Pydantic model, extra="forbid"
-        |
-        v
-   sdk.validate               7 preflight checks
-        |
-        v
-   sdk.backend                offline | enhanced | onnx  (IBackend)
-        |
-        v
-   sdk.fusion                 synthetic lidar -> camera-lidar fuse -> SimpleTracker
-        |
-        v
-   sdk.output                 PerceptionFrame (ASAM OpenLABEL / ISO 23150 aligned)
-        |
-        +----> FastAPI / WebSocket / NDJSON (IMiddlewareAdapter)
-```
+<p align="center">
+  <img src="docs/architecture.png" alt="Lynx architecture" width="520">
+</p>
 
 The two ends of the pipeline are plugin seams:
 
@@ -103,6 +104,7 @@ dashboard/index.html       single-page dashboard
 vscode-extension/          VS Code extension (config form + dashboard)
 scripts/                   run / smoke / benchmark / config_io / export_* / make_demo_data ...
 docs/schema/               generated JSON Schema (config + PerceptionFrame)
+docs/architecture.png      pipeline architecture diagram
 tests/                     contract + validator tests
 ```
 
@@ -295,6 +297,17 @@ thread and streams the latest frame.
   live preflight validation and `@ai-lock` sections rendered read-only.
 - **Dashboard** — a webview panel for live backend switching and status.
 
+### Screenshots
+
+<p align="center">
+  <img src="可视化配置编辑.png" alt="Config editor" width="300">
+  <img src="实时状态看板.png" alt="Status dashboard" width="480">
+</p>
+
+<p align="center">
+  <img src="插件Dashboard演示.gif" alt="Dashboard demo" width="540">
+</p>
+
 ## Development
 
 ```bash
@@ -312,3 +325,9 @@ follow Conventional Commits and are written in English.
 ## License
 
 Apache-2.0. See [LICENSE](LICENSE).
+
+## Documentation
+
+Product documents (business plan, technical architecture, patent FTO, financial
+model, demo plan) live in the `perception-sdk` workspace and are the source of
+truth for the SDK's target architecture.
