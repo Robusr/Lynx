@@ -96,8 +96,8 @@ server.py                  FastAPI + WebSocket 演示
 dashboard/index.html       单页看板
 vscode-extension/          VS Code 扩展（配置表单 + 看板）
 scripts/                   run / smoke / benchmark / config_io / export_* / make_demo_data ...
+docs/                      图表（架构、数据模型、验证、后端）
 docs/schema/               生成的 JSON Schema（config + PerceptionFrame）
-docs/architecture.png      流水线架构图
 docs/images/               截图（配置编辑器、看板、演示）
 tests/                     契约 + 校验器测试
 ```
@@ -203,6 +203,10 @@ data:                       # 演示的回放源
 产品契约是 `sdk/output/frame.py` 中的 `PerceptionFrame`，已导出为 JSON Schema
 （`docs/schema/perception_frame.schema.json`）。
 
+<p align="center">
+  <img src="docs/datamodel.png" alt="PerceptionFrame 数据模型" width="560">
+</p>
+
 | 类型 | 说明 |
 |---|---|
 | `PerceptionFrame` | `stamp_ns`、`frame_id`、`seq`、`backend`、`objects`、`traffic_signs`、`latency_ms` |
@@ -227,6 +231,10 @@ data:                       # 演示的回放源
 
 所有后端实现同一 `IBackend` 接口（`init`、`detect`、`info`、`release`），由
 `perception.backend` 选择。
+
+<p align="center">
+  <img src="docs/backends.png" alt="后端与执行提供器" width="560">
+</p>
 
 | 后端 | 模型 | 说明 |
 |---|---|---|
@@ -254,6 +262,10 @@ CoreML 上运行，无需更改 SDK 代码路径。
 `sdk/validate.py` 在流水线启动前运行七项语义校验，顺序遵循技术架构文档。
 `to_report()` 渲染 JSON 报告，`scripts/validate_json.py --out preflight_report.json`
 将报告写入磁盘。
+
+<p align="center">
+  <img src="docs/validation.png" alt="预检验证门禁" width="560">
+</p>
 
 | 校验项 | 目的 |
 |---|---|

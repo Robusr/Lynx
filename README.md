@@ -103,8 +103,8 @@ server.py                  FastAPI + WebSocket demo
 dashboard/index.html       single-page dashboard
 vscode-extension/          VS Code extension (config form + dashboard)
 scripts/                   run / smoke / benchmark / config_io / export_* / make_demo_data ...
+docs/                      diagrams (architecture, data model, validation, backends)
 docs/schema/               generated JSON Schema (config + PerceptionFrame)
-docs/architecture.png      pipeline architecture diagram
 docs/images/               screenshots (config editor, dashboard, demo)
 tests/                     contract + validator tests
 ```
@@ -212,6 +212,10 @@ AI-annotation conventions in the manifest:
 The product contract is `PerceptionFrame` in `sdk/output/frame.py`, exported as a
 JSON Schema in `docs/schema/perception_frame.schema.json`.
 
+<p align="center">
+  <img src="docs/datamodel.png" alt="PerceptionFrame data model" width="560">
+</p>
+
 | Type | Description |
 |---|---|
 | `PerceptionFrame` | `stamp_ns`, `frame_id`, `seq`, `backend`, `objects`, `traffic_signs`, `latency_ms` |
@@ -238,6 +242,10 @@ class. `pose_covariance` is a 6x6 row-major list (empty when unknown);
 
 All backends implement the same `IBackend` interface (`init`, `detect`, `info`,
 `release`) and are selected with `perception.backend`.
+
+<p align="center">
+  <img src="docs/backends.png" alt="Backends and execution providers" width="560">
+</p>
 
 | Backend | Model | Notes |
 |---|---|---|
@@ -266,6 +274,10 @@ CPU, CUDA, TensorRT, ARM ACL, or CoreML without changing the SDK code path.
 `sdk/validate.py` runs seven semantic checks before the pipeline starts, ordered
 per the technical-architecture document. `to_report()` renders a JSON report and
 `scripts/validate_json.py --out preflight_report.json` writes it to disk.
+
+<p align="center">
+  <img src="docs/validation.png" alt="Preflight validation gate" width="560">
+</p>
 
 | Check | Purpose |
 |---|---|
