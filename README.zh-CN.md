@@ -98,6 +98,7 @@ vscode-extension/          VS Code 扩展（配置表单 + 看板）
 scripts/                   run / smoke / benchmark / config_io / export_* / make_demo_data ...
 docs/schema/               生成的 JSON Schema（config + PerceptionFrame）
 docs/architecture.png      流水线架构图
+docs/images/               截图（配置编辑器、看板、演示）
 tests/                     契约 + 校验器测试
 ```
 
@@ -287,12 +288,12 @@ CoreML 上运行，无需更改 SDK 代码路径。
 ### 截图
 
 <p align="center">
-  <img src="可视化配置编辑.png" alt="配置编辑器" width="300">
-  <img src="实时状态看板.png" alt="状态看板" width="480">
+  <img src="docs/images/config-editor.png" alt="配置编辑器" width="300">
+  <img src="docs/images/status-dashboard.png" alt="状态看板" width="480">
 </p>
 
 <p align="center">
-  <img src="插件Dashboard演示.gif" alt="看板演示" width="540">
+  <img src="docs/images/dashboard-demo.gif" alt="看板演示" width="540">
 </p>
 
 ## 开发
@@ -312,7 +313,3 @@ SDK 可通过 `pip install -e .` 安装，含可选依赖 `.[ml]`、`.[server]`�
 
 Apache-2.0。详见 [LICENSE](LICENSE)。
 
-## 文档
-
-产品文档（商业计划、技术架构、专利 FTO、财务模型、演示计划）位于 `perception-sdk`
-工作区，是 SDK 目标架构的事实来源。

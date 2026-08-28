@@ -105,6 +105,7 @@ vscode-extension/          VS Code extension (config form + dashboard)
 scripts/                   run / smoke / benchmark / config_io / export_* / make_demo_data ...
 docs/schema/               generated JSON Schema (config + PerceptionFrame)
 docs/architecture.png      pipeline architecture diagram
+docs/images/               screenshots (config editor, dashboard, demo)
 tests/                     contract + validator tests
 ```
 
@@ -300,12 +301,12 @@ thread and streams the latest frame.
 ### Screenshots
 
 <p align="center">
-  <img src="可视化配置编辑.png" alt="Config editor" width="300">
-  <img src="实时状态看板.png" alt="Status dashboard" width="480">
+  <img src="docs/images/config-editor.png" alt="Config editor" width="300">
+  <img src="docs/images/status-dashboard.png" alt="Status dashboard" width="480">
 </p>
 
 <p align="center">
-  <img src="插件Dashboard演示.gif" alt="Dashboard demo" width="540">
+  <img src="docs/images/dashboard-demo.gif" alt="Dashboard demo" width="540">
 </p>
 
 ## Development
@@ -325,9 +326,3 @@ follow Conventional Commits and are written in English.
 ## License
 
 Apache-2.0. See [LICENSE](LICENSE).
-
-## Documentation
-
-Product documents (business plan, technical architecture, patent FTO, financial
-model, demo plan) live in the `perception-sdk` workspace and are the source of
-truth for the SDK's target architecture.
