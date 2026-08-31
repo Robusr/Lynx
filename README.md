@@ -19,7 +19,7 @@
 
 This repository is the **walking skeleton**: a vertical slice through every layer
 of the product, built to be hardened into the production SDK rather than thrown
-away after the demo.
+away after the mvp demo.
 
 ## Table of contents
 
