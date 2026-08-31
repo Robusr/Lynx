@@ -18,8 +18,7 @@
 </p>
 
 This repository is the **walking skeleton**: a vertical slice through every layer
-of the product, built to be hardened into the production SDK rather than thrown
-away after the mvp demo.
+of the product, built to be hardened into the production SDK.
 
 ## Table of contents
 
