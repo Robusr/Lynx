@@ -145,8 +145,8 @@ python scripts/run.py
 Headless smoke test (no server, no UI):
 
 ```bash
-python scripts/smoke.py config/robot.demo.yaml 5          # 5 frames
-python scripts/smoke.py config/robot.demo.yaml 5 --jsonl  # publish NDJSON
+python scripts/smoke.py config/robot.demo.yaml 5          #  5 frames
+python scripts/smoke.py config/robot.demo.yaml 5 --jsonl  #  publish NDJSON
 ```
 
 Run the tests:
