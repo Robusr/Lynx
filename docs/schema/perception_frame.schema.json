@@ -219,6 +219,24 @@
           ],
           "title": "Velocity",
           "type": "array"
+        },
+        "velocity_px": {
+          "default": [
+            0.0,
+            0.0
+          ],
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Velocity Px",
+          "type": "array"
         }
       },
       "required": [
@@ -300,6 +318,11 @@
   },
   "description": "The standardized output frame published once per detection cycle.\n\n`stamp_ns` + `frame_id` + `seq` map to the architecture doc's `Header`\nmessage (flattened here for the Python prototype).",
   "properties": {
+    "schema_version": {
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
     "stamp_ns": {
       "title": "Stamp Ns",
       "type": "integer"
@@ -336,6 +359,14 @@
       "default": 0.0,
       "title": "Latency Ms",
       "type": "number"
+    },
+    "warnings": {
+      "description": "Per-frame runtime flags, e.g. 'detection_latency_exceeded'.",
+      "items": {
+        "type": "string"
+      },
+      "title": "Warnings",
+      "type": "array"
     }
   },
   "required": [

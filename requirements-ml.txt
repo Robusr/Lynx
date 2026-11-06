@@ -1,5 +1,4 @@
-# ML backends. Install in a Python 3.11/3.12 venv — torch/ultralytics wheels
-# for Python 3.14 may not be published yet.
--r requirements.txt
-ultralytics>=8.3
-onnxruntime>=1.18
+# Lynx with ML backends and the demo server.
+# Install in a Python 3.11/3.12 venv — torch/ultralytics wheels for newer
+# Python versions may not be published yet.
+-e .[ml,server]

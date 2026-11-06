@@ -5,13 +5,17 @@ generated or validated from it (see sdk.validate). Pydantic gives structural
 validation for free, and this model doubles as the JSON-Schema source for editor
 IntelliSense (scripts/export_schema.py): `Literal[...]` becomes an enum dropdown,
 `Field(description=...)` becomes hover docs, and `extra="forbid"` flags typos.
+
+Relative paths in the manifest are resolved against the manifest's own directory
+via `RobotConfig.resolve()`, so the SDK can be started from any working directory.
 """
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Dict, List, Literal, Optional
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, model_validator
 
 
 class _Config(BaseModel):
@@ -20,16 +24,42 @@ class _Config(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class MountConfig(_Config):
+    """Sensor extrinsics relative to the vehicle frame."""
+
+    x: float = Field(default=0.0, description="Forward offset from the vehicle frame in m.")
+    y: float = Field(default=0.0, description="Left offset from the vehicle frame in m.")
+    z: float = Field(default=0.0, description="Up offset from the vehicle frame in m.")
+    roll: float = Field(default=0.0, description="Roll in rad.")
+    pitch: float = Field(default=0.0, description="Pitch in rad.")
+    yaw: float = Field(default=0.0, description="Yaw in rad; 0 points forward.")
+
+
+class DimensionsConfig(_Config):
+    """Vehicle envelope in metres."""
+
+    l: float = Field(default=2.4, gt=0.0, description="Length in m.")  # noqa: E741
+    w: float = Field(default=1.3, gt=0.0, description="Width in m.")
+    h: float = Field(default=1.9, gt=0.0, description="Height in m.")
+
+
+class ROIConfig(_Config):
+    """Region of interest around the ego vehicle."""
+
+    forward_m: float = Field(default=60.0, gt=0.0, description="Forward range in m; must be > 0.")
+    lateral_m: float = Field(default=15.0, gt=0.0, description="Half-width in m; must be > 0.")
+
+
 class VehicleConfig(_Config):
     name: str = Field(description="Vehicle identifier, e.g. 'demo_factory_truck'.")
     type: Literal["diff_drive", "ackermann", "skid_steer", "omni"] = Field(
         default="ackermann", description="Kinematic model."
     )
     max_speed_ms: float = Field(default=5.0, description="Speed ceiling in m/s; safety checks reject <= 0.")
-    wheelbase_m: float = Field(default=1.8, description="Wheelbase in m (kinematic/geometry; no runtime consumer yet).")
+    wheelbase_m: float = Field(default=1.8, description="Wheelbase in m (geometry; no runtime consumer yet).")
     track_width_m: float = Field(default=1.4, description="Track width in m (geometry; no runtime consumer yet).")
-    dimensions: Dict[str, float] = Field(
-        default_factory=lambda: {"l": 2.4, "w": 1.3, "h": 1.9},
+    dimensions: DimensionsConfig = Field(
+        default_factory=DimensionsConfig,
         description="Vehicle envelope l/w/h in m (geometry; no runtime consumer yet).",
     )
 
@@ -41,7 +71,7 @@ class DomainControllerConfig(_Config):
     model: Literal["laptop", "jetson_orin_nano", "rk3588"] = Field(
         default="laptop", description="Onboard compute target (drives resource-budget checks)."
     )
-    compute_tops: float = Field(default=0.0, description="INT8 TOPS, advisory for the resource budget (0 = unspecified).")
+    compute_tops: float = Field(default=0.0, ge=0.0, description="INT8 TOPS, advisory for the resource budget (0 = unspecified).")
     inference_backend: Literal["onnx_cpu", "onnx_cuda", "tensorrt", "onnx_acl", "onnx_coreml"] = Field(
         default="onnx_cpu", description="Inference execution provider for the ONNX backend."
     )
@@ -59,14 +89,18 @@ class SensorConfig(_Config):
         default="ethernet", description="Physical interface (drives the interface-contract check)."
     )
     topic: str = Field(default="", description="Data topic (middleware-dependent).")
-    mount: Dict[str, float] = Field(
-        default_factory=lambda: {"x": 0, "y": 0, "z": 0, "roll": 0, "pitch": 0, "yaw": 0},
-        description="Extrinsics relative to the vehicle frame (x/y/z in m, roll/pitch/yaw in rad).",
+    mount: Optional[MountConfig] = Field(
+        default=None,
+        description="Extrinsics relative to the vehicle frame; required by the preflight gate.",
     )
-    fps: float = Field(default=20.0, description="Native sensor rate (Hz).")
+    fps: float = Field(default=20.0, gt=0.0, description="Native sensor rate (Hz).")
     sync_source: Literal["pps", "gptp", "ntp", "software"] = Field(
         default="software", description="Time-sync source; a single master clock is required."
     )
+
+
+PipelineModule = Literal["detection", "tracking", "traffic_sign"]
+DEFAULT_MODULES: List[PipelineModule] = ["detection", "tracking", "traffic_sign"]
 
 
 class PerceptionConfig(_Config):
@@ -74,13 +108,14 @@ class PerceptionConfig(_Config):
         default="offline",
         description="Detection backend: offline (YOLO11s) | enhanced (YOLO11x + ROI) | onnx (ONNX Runtime).",
     )
-    conf: float = Field(default=0.4, description="Detection confidence threshold (full-frame pass).")
-    modules: List[str] = Field(
-        default_factory=lambda: ["detection", "tracking", "traffic_sign"],
-        description="Enabled pipeline modules.",
+    conf: float = Field(default=0.4, ge=0.0, le=1.0, description="Detection confidence threshold (full-frame pass).")
+    modules: List[PipelineModule] = Field(
+        default_factory=lambda: list(DEFAULT_MODULES),
+        min_length=1,
+        description="Enabled pipeline modules; 'detection' is required.",
     )
-    roi: Dict[str, float] = Field(
-        default_factory=lambda: {"forward_m": 60.0, "lateral_m": 15.0},
+    roi: ROIConfig = Field(
+        default_factory=ROIConfig,
         description="Region of interest around the ego vehicle (meters).",
     )
     small_target_enhance: bool = Field(
@@ -91,13 +126,13 @@ class PerceptionConfig(_Config):
 
 class OutputConfig(_Config):
     frame_id: str = Field(default="base_link", description="Coordinate frame for published objects.")
-    rate_hz: float = Field(default=10.0, description="Perception loop rate (Hz).")
+    rate_hz: float = Field(default=10.0, gt=0.0, description="Perception loop rate (Hz).")
 
 
 class SafetyConfig(_Config):
     min_braking_distance_m: float = Field(default=1.0, description="Minimum braking distance (m); must be > 0.")
     min_obstacle_height_m: float = Field(default=0.05, description="Minimum obstacle height to consider (m).")
-    max_detection_latency_ms: float = Field(default=100.0, description="Latency ceiling (ms); violations flagged.")
+    max_detection_latency_ms: float = Field(default=100.0, description="Latency ceiling (ms); violations flagged per frame.")
     redundant_fov_required: bool = Field(default=True, description="Require redundant forward FOV coverage.")
 
 
@@ -110,7 +145,8 @@ class CalibrationConfig(_Config):
     """Calibration artifacts (intrinsics/extrinsics/time-offset) for CalibStore.
 
     Paths are contract fields; the CalibStore loader (and ISensorAdapter.init's
-    `calib` argument) is a later milestone, so these are declared but not yet read.
+    `calib` argument) is a later milestone. The preflight gate verifies that any
+    declared file exists, so a manifest cannot silently reference missing data.
     """
     camera_intrinsics: Optional[str] = Field(default=None, description="Per-camera intrinsic calibration file.")
     extrinsics: Optional[str] = Field(default=None, description="Sensor extrinsics file (merged with mount).")
@@ -131,9 +167,37 @@ class RobotConfig(_Config):
     safety: SafetyConfig = Field(default_factory=SafetyConfig, description="Safety bounds.")
     data: DataConfig = Field(default_factory=DataConfig, description="Replay data source.")
 
+    _base_dir: Path = PrivateAttr(default_factory=Path.cwd)
+
+    def resolve(self, path: Optional[str]) -> Optional[str]:
+        """Resolve a manifest-relative path against the manifest directory."""
+        if not path:
+            return path
+        candidate = Path(path)
+        if candidate.is_absolute():
+            return str(candidate)
+        return str((self._base_dir / candidate).resolve())
+
+    @model_validator(mode="after")
+    def _validate_manifest(self) -> "RobotConfig":
+        if not self.schema_version.startswith("1."):
+            raise ValueError(
+                f"unsupported schema_version {self.schema_version!r}; this SDK supports 1.x"
+            )
+        names = [s.name for s in self.sensors]
+        duplicates = sorted({name for name in names if names.count(name) > 1})
+        if duplicates:
+            raise ValueError(f"duplicate sensor name(s): {duplicates}")
+        if "detection" not in self.perception.modules:
+            raise ValueError("perception.modules must include 'detection'")
+        return self
+
 
 def load_config(path: str) -> RobotConfig:
     """Load and structurally validate a manifest YAML file."""
-    with open(path, "r", encoding="utf-8") as f:
+    config_path = Path(path).resolve()
+    with config_path.open("r", encoding="utf-8") as f:
         raw = yaml.safe_load(f)
-    return RobotConfig.model_validate(raw)
+    cfg = RobotConfig.model_validate(raw)
+    cfg._base_dir = config_path.parent
+    return cfg

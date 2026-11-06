@@ -9,7 +9,7 @@ from __future__ import annotations
 import csv
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterator, List, Optional
+from typing import List, Optional
 
 import numpy as np
 
@@ -18,7 +18,7 @@ import numpy as np
 class FrameBatch:
     """Time-aligned frame bundle for one perception tick.
 
-    Demo subset of the doc's FrameBatch (§3.1): a single camera + optional lidar
+    Demo subset of docs/architecture.md's FrameBatch: a single camera + optional lidar
     array stand in for the doc's `cams[]/lidars[]/radars[]/imus[]` vectors, which
     arrive with real multi-sensor drivers (M2).
     """

@@ -8,13 +8,15 @@
 </p>
 
 <p align="center">
-  <a href="README.md">English</a> | <a href="README.zh-CN.md">简体中文</a>
+  <a href="README.md">English</a> | <a href="README.zh-CN.md"><strong>简体中文</strong></a> | <a href="README.fr.md">Français</a>
 </p>
 
 <p align="center">
   <em>面向封闭园区（厂区、港口、园区、校园）低速自动驾驶车辆的硬件无关感知融合 SDK。
   一套 SDK、三种推理后端、一种标准化输出。</em>
 </p>
+
+> **英文版是原始版本。** 中文与法文翻译按尽力维护，可能落后于英文源。
 
 本仓库是 **行走骨架（walking skeleton）**：贯穿产品每一层的垂直切片，目标是打磨成
 生产级 SDK。
@@ -30,12 +32,14 @@
 - [数据模型](#数据模型)
 - [后端](#后端)
 - [硬件抽象层](#硬件抽象层)
+- [融合与跟踪](#融合与跟踪)
 - [验证门禁](#验证门禁)
+- [遥测](#遥测)
 - [演示服务器](#演示服务器)
 - [VS Code 扩展](#vs-code-扩展)
 - [开发](#开发)
-- [许可证](#许可证)
 - [文档](#文档)
+- [许可证](#许可证)
 
 ## 概览
 
@@ -76,6 +80,64 @@ Lynx 在硬件无关的插件接口背后，把原始传感器帧转化为标准
 - `IMiddlewareAdapter`（`sdk/hal/middleware.py`）把每个 `PerceptionFrame` 发布到任意
   传输层。演示自带 `JsonLineMiddlewareAdapter`（NDJSON）。
 
+### 运行时流程
+
+```mermaid
+flowchart LR
+    subgraph Input["输入"]
+        CAM["相机帧"]
+        LID["LiDAR 点云"]
+        CFG["config/robot.demo.yaml"]
+    end
+    subgraph SDK["Lynx SDK"]
+        HAL["ISensorAdapter<br/>ReplaySensorAdapter"]
+        PRE["预检<br/>7 项检查"]
+        BE["IBackend<br/>offline · enhanced · onnx"]
+        FUS["相机-LiDAR<br/>后融合"]
+        TRK["SimpleTracker<br/>类别门控 · 3D 阈值"]
+        FRM["PerceptionFrame<br/>标准契约"]
+    end
+    subgraph Output["输出"]
+        CB["on_frame 回调"]
+        MW["IMiddlewareAdapter<br/>NDJSON · ROS 2 · DDS"]
+        MET["指标<br/>时延 · FPS · 来源"]
+        UI["看板 / VS Code"]
+    end
+    CFG --> PRE
+    PRE --> HAL
+    CAM --> HAL
+    LID --> FUS
+    HAL --> BE
+    BE --> FUS
+    FUS --> TRK
+    TRK --> FRM
+    FRM --> CB
+    FRM --> MW
+    FRM --> MET
+    CB --> UI
+```
+
+### 一次感知周期
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant S as 传感器适配器
+    participant P as pipeline.run()
+    participant B as IBackend
+    participant F as 融合 + 跟踪
+    participant O as PerceptionFrame
+    participant H as 宿主 / 中间件
+    S->>P: FrameBatch(stamp_ns, camera, lidar)
+    P->>B: detect(image)
+    B-->>P: Detection[]
+    P->>F: 融合 + 跟踪
+    F-->>P: Track[]
+    P->>O: 构建帧(seq, backend, latency, warnings)
+    P->>H: on_frame(frame) / publish(frame)
+    P->>P: 按 rate_hz 截止时间调度
+```
+
 ### 模块依赖
 
 <p align="center">
@@ -86,6 +148,27 @@ Lynx 在硬件无关的插件接口背后，把原始传感器帧转化为标准
 `hal/`——而 `validate.py` 在运行时服务启动之前读取清单。两个叶子被几乎所有模块引用：
 `output/frame.py`（`PerceptionFrame` 数据模型）与 `config.py`（Pydantic schema）。
 `input/replay_reader.py` 提供演示的 `FrameBatch` 数据源。
+
+```mermaid
+flowchart TD
+    PIPE["pipeline.py<br/>run()"] --> BE["backend/"]
+    PIPE --> FUS["fusion/"]
+    PIPE --> HAL["hal/"]
+    PIPE --> VAL["validate.py"]
+    PIPE --> CFG["config.py"]
+    PIPE --> FRM["output/frame.py"]
+    PIPE --> MET["metrics.py"]
+    BE --> FRM
+    FUS --> FRM
+    FUS --> CAM["camera.py"]
+    FUS --> GEO["geometry.py"]
+    HAL --> FRM
+    VAL --> CFG
+    INP["input/replay_reader.py"] --> HAL
+    MET --> FRM
+```
+
+架构文字说明、运行时流程与扩展点约定见 [docs/architecture.md](docs/architecture.md)。
 
 ## 仓库结构
 
@@ -107,7 +190,7 @@ server.py                  FastAPI + WebSocket 演示
 dashboard/index.html       单页看板
 vscode-extension/          VS Code 扩展（配置表单 + 看板）
 scripts/                   run / smoke / benchmark / config_io / export_* / make_demo_data ...
-docs/                      图表（架构、模块依赖、数据模型、验证、后端）
+docs/                      architecture.md 与图表（数据模型、验证、后端）
 docs/schema/               生成的 JSON Schema（config + PerceptionFrame）
 docs/images/               截图（配置编辑器、看板、演示）
 tests/                     契约 + 校验器测试
@@ -116,6 +199,16 @@ tests/                     契约 + 校验器测试
 ## 快速开始
 
 需要 Python 3.11+（ML 后端建议 3.11/3.12）。
+
+```mermaid
+flowchart LR
+    A["Python 3.11+<br/>建议 3.12"] --> B["创建 virtualenv"]
+    B --> C["pip install -r requirements.txt"]
+    C --> D["可选 ML：requirements-ml.txt"]
+    D --> E["生成演示帧"]
+    E --> F["python scripts/run.py"]
+    F --> G["http://127.0.0.1:8000"]
+```
 
 ```bash
 # 1. 虚拟环境
@@ -152,6 +245,15 @@ python -m pytest tests/
 
 `config/robot.demo.yaml` 是唯一手写的部署文件。其键与 `sdk/config.py` 一一对应，并且
 是驱动编辑器智能提示与 VS Code 配置表单的 JSON Schema 的来源。
+
+```mermaid
+flowchart LR
+    YAML["config/robot.demo.yaml"] --> MODEL["RobotConfig<br/>Pydantic 模型"]
+    MODEL --> SCHEMA["JSON Schema<br/>docs/schema + 扩展"]
+    MODEL --> FORM["VS Code 配置表单"]
+    MODEL --> VALID["预检校验器"]
+    MODEL --> RUNTIME["运行时<br/>后端 · ROI · 帧率 · 输出"]
+```
 
 ```yaml
 vehicle:                    # 运动学模型 + 包络
@@ -198,9 +300,9 @@ safety:                     # @ai-lock - 只读
   max_detection_latency_ms: 100
   redundant_fov_required: true
 
-data:                       # 演示的回放源
-  frames_dir: "data/frames"
-  index_path: "data/index.csv"
+data:                       # 演示的回放源；相对路径基于本清单所在目录
+  frames_dir: "../data/frames"
+  index_path: "../data/index.csv"
 ```
 
 清单中的 AI 注解约定：
@@ -218,10 +320,106 @@ data:                       # 演示的回放源
   <img src="docs/datamodel.png" alt="PerceptionFrame 数据模型" width="560">
 </p>
 
+```mermaid
+classDiagram
+    class PerceptionFrame {
+        +string schema_version
+        +int stamp_ns
+        +string frame_id
+        +int seq
+        +string backend
+        +float latency_ms
+        +string[] warnings
+    }
+    class Detection {
+        +int cls_id
+        +string cls_name
+        +ObjectType type
+        +string sub_type
+        +float confidence
+        +SourceMask source
+        +float occlusion_ratio
+        +float small_target_score
+    }
+    class Track {
+        +int track_id
+        +float[] velocity
+        +float[] velocity_px
+    }
+    class TrafficSign {
+        +SignType type
+        +string cls_name
+        +string text
+        +float confidence
+        +int stamp_ns
+    }
+    class BBox2D {
+        +float x
+        +float y
+        +float w
+        +float h
+    }
+    class BBox3D {
+        +float x
+        +float y
+        +float z
+        +float l
+        +float w
+        +float h
+        +float yaw
+    }
+    PerceptionFrame *-- "0..*" Track : 包含
+    PerceptionFrame *-- "0..*" TrafficSign : 包含
+    Detection <|-- Track : 继承
+    Detection *-- "0..1" BBox2D : bbox_2d
+    Detection *-- "0..1" BBox3D : bbox_3d
+    TrafficSign *-- "0..1" BBox2D : bbox_2d
+    TrafficSign *-- "0..1" BBox3D : bbox_3d
+```
+
+```mermaid
+classDiagram
+    class ObjectType {
+        <<enumeration>>
+        pedestrian
+        bicycle
+        vehicle
+        truck
+        cone
+        barrier
+        traffic_sign
+        traffic_light
+        unknown
+    }
+    class SignType {
+        <<enumeration>>
+        stop
+        speed_limit
+        yield
+        no_entry
+        traffic_light
+        unknown
+    }
+    class SourceMask {
+        <<enumeration>>
+        CAMERA
+        LIDAR
+        RADAR
+    }
+```
+
+```mermaid
+flowchart LR
+    D["Detection"] --> T["Track"]
+    D --> S["TrafficSign"]
+    T --> F["PerceptionFrame"]
+    S --> F
+```
+
 | 类型 | 说明 |
 |---|---|
-| `PerceptionFrame` | `stamp_ns`、`frame_id`、`seq`、`backend`、`objects`、`traffic_signs`、`latency_ms` |
-| `Track` | `Detection` 外加 `track_id` 与三维 `velocity` |
+| `PerceptionFrame` | `schema_version`、`stamp_ns`、`frame_id`、`seq`、`backend`、`objects`、`traffic_signs`、`latency_ms`、`warnings` |
+| `Track` | `Detection` 外加 `track_id`、米每秒的三维 `velocity` 与像素每秒的 `velocity_px` |
 | `TrafficSign` | `type`、`cls_name`、`text`、`bbox_2d/3d`、`confidence`、`stamp_ns` |
 | `Detection` | `cls_id`、`cls_name`、`type`、`sub_type`、`bbox_2d/3d`、`confidence`、`source`、`occlusion_ratio`、`small_target_score`、`pose_covariance`、`attributes` |
 | `BBox2D` / `BBox3D` | 图像平面 (x, y, w, h) 与世界/车体 (x, y, z, l, w, h, yaw) 框 |
@@ -247,6 +445,20 @@ data:                       # 演示的回放源
   <img src="docs/backends.png" alt="后端与执行提供器" width="560">
 </p>
 
+```mermaid
+flowchart TD
+    A["perception.backend"] -->|offline| O["OfflineBackend<br/>YOLO11s"]
+    A -->|enhanced| E["EnhancedBackend<br/>YOLO11x + ROI"]
+    A -->|onnx| N["OnnxBackend<br/>ONNX Runtime"]
+    N --> P{"执行提供器"}
+    P -->|onnx_cpu| CPU["CPU"]
+    P -->|onnx_cuda| CUDA["CUDA"]
+    P -->|tensorrt| TRT["TensorRT"]
+    P -->|onnx_acl| ACL["ARM ACL"]
+    P -->|onnx_coreml| CML["CoreML"]
+    P -->|不可用| FB["回退 CPU<br/>记录并上报"]
+```
+
 | 后端 | 模型 | 说明 |
 |---|---|---|
 | `offline` | YOLO11s | 单次全帧推理，对 CPU 友好。部署车队的默认项。 |
@@ -268,15 +480,113 @@ CoreML 上运行，无需更改 SDK 代码路径。
 - `IMiddlewareAdapter` —— `init`、`publish`、`subscribe`、`stop`。屏蔽 ROS2 / DDS /
   SOME-IP / 私有总线之间的差异。`JsonLineMiddlewareAdapter` 每行发布一个 JSON 对象。
 
+```mermaid
+classDiagram
+    class ISensorAdapter {
+        <<interface>>
+        +init(cfg, calib)
+        +start()
+        +stop()
+        +grab(timeout_ms)
+        +health()
+    }
+    class IInferenceBackend {
+        <<interface>>
+        +init(cfg)
+        +detect(image)
+        +info()
+        +release()
+    }
+    class IMiddlewareAdapter {
+        <<interface>>
+        +init(cfg)
+        +publish(frame)
+        +subscribe(topic, callback)
+        +stop()
+    }
+    class ReplaySensorAdapter
+    class OfflineBackend
+    class EnhancedBackend
+    class OnnxBackend
+    class JsonLineMiddlewareAdapter
+    ISensorAdapter <|.. ReplaySensorAdapter
+    IInferenceBackend <|.. OfflineBackend
+    IInferenceBackend <|.. EnhancedBackend
+    IInferenceBackend <|.. OnnxBackend
+    IMiddlewareAdapter <|.. JsonLineMiddlewareAdapter
+```
+
+## 融合与跟踪
+
+### 相机-激光雷达融合
+
+后融合在投影 3D 框之后，用 2D IoU 关联相机检测与 LiDAR 3D 框。匹配对象保留相机
+类别与 LiDAR 几何。
+
+```mermaid
+flowchart LR
+    C["相机检测<br/>2D 框 + 类别"] --> A["投影 LiDAR 3D 框<br/>经针孔模型"]
+    L["LiDAR 检测<br/>3D 框"] --> A
+    A --> Q{"2D IoU 至少 0.3"}
+    Q -->|匹配| F["融合目标<br/>source = CAMERA + LIDAR"]
+    Q -->|未匹配| CO["仅相机目标"]
+    Q -->|未匹配| LO["仅 LiDAR 目标"]
+    F --> T["跟踪"]
+    CO --> T
+    LO --> T
+```
+
+演示用 `sdk/fusion/lidar.py` 将相机框反投影为合理的 3D 框，因此无需真实 LiDAR 即可
+跑通融合；`sdk/fusion/fuse.py` 的关联代码与生产点云前端一致。
+
+### 跟踪
+
+```mermaid
+stateDiagram-v2
+    [*] --> Active: 新检测
+    Active --> Active: IoU 或 3D 阈值匹配
+    Active --> Lost: 未匹配
+    Lost --> Active: 重新匹配
+    Lost --> Removed: 丢失超过 max_lost
+    Removed --> [*]
+```
+
+`SimpleTracker` 是可读的 SORT-lite 跟踪器。按类别门控关联，优先 2D IoU，对仅 LiDAR
+检测使用 3D 中心距离阈值，并同时输出车体坐标系 m/s 与图像平面 px/s 速度。生产升级
+路径为 ByteTrack 或匈牙利匹配加卡尔曼滤波。
+
 ## 验证门禁
 
-`sdk/validate.py` 在流水线启动前运行七项语义校验，顺序遵循技术架构文档。
+`sdk/validate.py` 在流水线启动前运行七项语义校验，顺序遵循 `docs/architecture.md`。
 `to_report()` 渲染 JSON 报告，`scripts/validate_json.py --out preflight_report.json`
 将报告写入磁盘。
 
 <p align="center">
   <img src="docs/validation.png" alt="预检验证门禁" width="560">
 </p>
+
+```mermaid
+flowchart TD
+    M["配置清单"] --> C1["time_sync"]
+    M --> C2["外参 + 校准文件"]
+    M --> C3["接口契约"]
+    M --> C4["带宽预算"]
+    M --> C5["FOV 与 ROI"]
+    M --> C6["算力预算"]
+    M --> C7["安全边界"]
+    C1 --> G{"存在错误？"}
+    C2 --> G
+    C3 --> G
+    C4 --> G
+    C5 --> G
+    C6 --> G
+    C7 --> G
+    G -->|是| X["中止启动"]
+    G -->|否| W{"存在警告？"}
+    W -->|是| A["要求 --accept-warnings<br/>或 LYNX_ACCEPT_WARNINGS=1"]
+    W -->|否| R["启动流水线"]
+    A --> R
+```
 
 | 校验项 | 目的 |
 |---|---|
@@ -288,9 +598,50 @@ CoreML 上运行，无需更改 SDK 代码路径。
 | `resource` | 后端 vs. 控制器算力预算 |
 | `safety` | 速度、时延与制动距离边界 |
 
+错误会阻止启动。警告需要显式确认：`python scripts/run.py --accept-warnings`
+或 `LYNX_ACCEPT_WARNINGS=1`。运行时检测时延超过
+`safety.max_detection_latency_ms` 时，会在 `PerceptionFrame.warnings` 中标记
+`detection_latency_exceeded`。
+
+## 遥测
+
+```mermaid
+flowchart LR
+    F["PerceptionFrame"] --> M["Metrics.record()"]
+    P["流水线截止时间"] --> D["Metrics.record_drop()"]
+    L["超过时延上限"] --> V["Metrics.record_latency_violation()"]
+    M --> S["snapshot()"]
+    D --> S
+    V --> S
+    S --> API["GET /api/metrics"]
+    S --> SB["VS Code 状态栏"]
+```
+
+`Metrics` 记录帧数、FPS、时延分位数、来源计数、丢帧与时延违规。
+
 ## 演示服务器
 
 `server.py` 暴露一个 FastAPI 应用，在守护线程中运行流水线并流式推送最新帧。
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant B as 浏览器 / webview
+    participant A as FastAPI 服务
+    participant P as 流水线线程
+    participant R as 广播线程
+    B->>A: GET /
+    B->>A: WS /ws
+    P->>P: 检测、融合、跟踪
+    P->>A: on_frame(frame, image)
+    A->>R: 标记待处理帧
+    R->>R: 标注 + JPEG 编码
+    R->>A: 最新 JPEG
+    A-->>B: frame 和 image
+    B->>A: POST /api/switch
+    A->>A: 预检、预初始化、切换
+    A-->>B: 200 或 400 详情
+```
 
 | 端点 | 说明 |
 |---|---|
@@ -308,6 +659,21 @@ CoreML 上运行，无需更改 SDK 代码路径。
   区块以只读方式渲染。
 - **看板** —— 用于后端实时切换与状态查看的 webview 面板。
 
+```mermaid
+flowchart LR
+    subgraph VSCode["VS Code"]
+        EX["扩展宿主<br/>命令 · 诊断"]
+        CF["配置表单 webview"]
+        DB["看板 webview"]
+    end
+    PY["scripts/run.py<br/>FastAPI + WebSocket"]
+    SDK["Lynx SDK"]
+    EX -->|启动 + HTTP| PY
+    CF -->|config_io.py get/check/set| SDK
+    DB -->|REST + WebSocket| PY
+    PY --> SDK
+```
+
 ### 截图
 
 <p align="center">
@@ -321,16 +687,50 @@ CoreML 上运行，无需更改 SDK 代码路径。
 
 ## 开发
 
+```mermaid
+flowchart LR
+    P["push / pull request"] --> L["ruff"]
+    P --> T["mypy sdk"]
+    P --> U["pytest · 61 个测试"]
+    P --> D["schema + dashboard 漂移"]
+    P --> E["npm ci + tsc"]
+    L --> G["CI 通过"]
+    T --> G
+    U --> G
+    D --> G
+    E --> G
+```
+
 ```bash
-python scripts/export_schema.py docs/schema    # 重新生成 JSON Schema
+python scripts/export_schema.py docs/schema    # 重新生成 JSON Schema 与扩展副本
+python scripts/export_schema.py --check        # CI 漂移检查
+python scripts/sync_dashboard.py               # 重新生成 webview 看板
+python scripts/sync_dashboard.py --check       # CI 漂移检查
 python scripts/validate_json.py config/robot.demo.yaml --out preflight_report.json
 python scripts/config_io.py get config/robot.demo.yaml       # config -> JSON
 python scripts/config_io.py set config/robot.demo.yaml       # JSON -> config（stdin）
-python -m pytest tests/                                      # 18 个测试
+python -m pytest tests/
+ruff check sdk scripts tests server.py
+mypy sdk
 ```
 
 SDK 可通过 `pip install -e .` 安装，含可选依赖 `.[ml]`、`.[server]`、`.[dev]`。
 `pyproject.toml` 是唯一的打包源。提交信息遵循 Conventional Commits，并使用英文书写。
+
+## 文档
+
+| 文档 | 内容 |
+|---|---|
+| [docs/architecture.md](docs/architecture.md) | 运行时流程、分层、扩展点与里程碑 |
+| [docs/schema/robot_config.schema.json](docs/schema/robot_config.schema.json) | 生成的配置 JSON Schema |
+| [docs/schema/perception_frame.schema.json](docs/schema/perception_frame.schema.json) | 生成的输出 JSON Schema |
+| [docs/architecture.png](docs/architecture.png) | 架构概览 |
+| [docs/dependencies.png](docs/dependencies.png) | 模块依赖图 |
+| [docs/datamodel.png](docs/datamodel.png) | 数据模型概览 |
+| [docs/backends.png](docs/backends.png) | 后端与执行提供器 |
+| [docs/validation.png](docs/validation.png) | 验证门禁 |
+| [README.md](README.md) | 英文原始版本 |
+| [README.fr.md](README.fr.md) | 法文翻译 |
 
 ## 许可证
 

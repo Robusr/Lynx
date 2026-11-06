@@ -8,7 +8,7 @@ Two-pass design:
 
 The ROI re-inference is deliberately *single-frame, single-scale* — a local
 upscale on a fixed band, avoiding the multi-resolution re-project-and-merge
-claim space of Tesla US11893774B2 (see 03-patent-fto.md).
+claim space of Tesla US11893774B2 (see the applicable FTO review).
 """
 from __future__ import annotations
 
@@ -53,7 +53,9 @@ class EnhancedBackend(IBackend):
 
     def init(self, cfg: RobotConfig) -> None:
         self._big = load_yolo(self.big_weights, self.device)
-        self._roi = load_yolo(self.roi_weights, self.device)
+        # The ROI model is only needed when the second pass is enabled; loading it
+        # lazily keeps the enhanced backend's startup cost and memory in check.
+        self._roi = None
 
     def detect(self, image: np.ndarray) -> List[Detection]:
         primary = predict_detections(self._big, image, self.conf, self.device)
@@ -67,6 +69,8 @@ class EnhancedBackend(IBackend):
             import cv2
         except ImportError as e:  # pragma: no cover - depends on env
             raise RuntimeError("opencv-python is required by the enhanced backend.") from e
+        if self._roi is None:
+            self._roi = load_yolo(self.roi_weights, self.device)
 
         h, w = image.shape[:2]
         top = max(1, int(h * self.roi_top_ratio))

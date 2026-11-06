@@ -13,8 +13,9 @@ than a config comment. Export the graph first with:
 """
 from __future__ import annotations
 
+import sys
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, List, Optional
 
 import numpy as np
 
@@ -79,15 +80,45 @@ def _letterbox(image: np.ndarray, size: int):
     return tensor, r, left, top
 
 
-def _decode(out: np.ndarray, scale: float, left: int, top: int, conf: float) -> List[Detection]:
-    """Map a YOLO11 `[1, 84, 8400]` logit tensor back to image-space detections."""
-    d = out[0]  # [4 + 80, 8400]
+def _decode(
+    out: np.ndarray,
+    scale: float,
+    left: int,
+    top: int,
+    conf: float,
+    max_det: int = 300,
+) -> List[Detection]:
+    """Map a YOLO11 logit tensor back to image-space detections.
+
+    Accepts both export layouts, `[1, 4 + classes, N]` and `[1, N, 4 + classes]`,
+    filters by confidence, keeps the top `max_det` candidates, and returns boxes
+    in source-image coordinates.
+    """
+    d = np.asarray(out)
+    if d.ndim == 3:
+        d = d[0]
+    if d.ndim != 2:
+        raise ValueError(f"unexpected ONNX output shape {np.asarray(out).shape}")
+    expected_channels = 4 + len(COCO_NAMES)  # 84 for COCO YOLO11
+    if d.shape[0] == expected_channels and d.shape[1] != expected_channels:
+        pass  # channels-first: [4 + classes, N]
+    elif d.shape[1] == expected_channels:
+        d = d.T  # channels-last: [N, 4 + classes]
+    elif d.shape[0] > d.shape[1]:
+        d = d.T
+    if d.shape[0] < 5:
+        return []
+
     boxes = d[:4]
     scores = d[4:]
     confs = scores.max(axis=0)
     cls_ids = scores.argmax(axis=0)
 
-    keep = confs >= conf
+    keep = np.where(confs >= conf)[0]
+    if keep.size == 0:
+        return []
+    keep = keep[np.argsort(-confs[keep])][:max_det]
+
     bx, by, bw, bh = boxes[0][keep], boxes[1][keep], boxes[2][keep], boxes[3][keep]
     cf, cid = confs[keep], cls_ids[keep]
 
@@ -131,7 +162,9 @@ class OnnxBackend(IBackend):
         self.providers = providers  # explicit EP list, or None → derive from config
         self.input_size = input_size
         self.ep = "cpu"
-        self._session = None
+        self.requested_ep = "cpu"
+        self.fallback = False
+        self._session: Any = None
         self._input_name: str = ""
         self._output_name: str = ""
 
@@ -147,7 +180,9 @@ class OnnxBackend(IBackend):
             requested = [primary, "CPUExecutionProvider"]
         else:
             requested = list(self.providers)
+            primary = requested[0]
         requested = list(dict.fromkeys(requested))  # dedupe, keep order
+        self.requested_ep = _short_label(primary)
 
         import onnxruntime as ort
 
@@ -156,22 +191,38 @@ class OnnxBackend(IBackend):
         if "CPUExecutionProvider" not in providers:
             providers.append("CPUExecutionProvider")
         self.ep = _short_label(providers[0])
+        self.fallback = self.ep != self.requested_ep
+        if self.fallback:
+            print(
+                f"onnx: requested {self.requested_ep!r} but using {self.ep!r}; "
+                f"available providers: {available}",
+                file=sys.stderr,
+            )
 
-        self._session = ort.InferenceSession(self.weights, providers=providers)
-        inp = self._session.get_inputs()[0]
+        session = ort.InferenceSession(self.weights, providers=providers)
+        self._session = session
+        inp = session.get_inputs()[0]
         self._input_name = inp.name
         if isinstance(inp.shape[2], int):
             self.input_size = inp.shape[2]
-        self._output_name = self._session.get_outputs()[0].name
+        self._output_name = session.get_outputs()[0].name
         self.name = f"onnx:{self.ep}"
 
     def detect(self, image: np.ndarray) -> List[Detection]:
+        session = self._session
+        if session is None:
+            raise RuntimeError("OnnxBackend.init() must be called before detect()")
         tensor, scale, left, top = _letterbox(image, self.input_size)
-        out = self._session.run([self._output_name], {self._input_name: tensor})[0]
+        out = session.run([self._output_name], {self._input_name: tensor})[0]
         return nms(_decode(out, scale, left, top, self.conf), iou_thresh=0.45)
 
     def info(self) -> BackendInfo:
-        return BackendInfo(name=self.name, model=self.weights, device=self.ep)
+        return BackendInfo(
+            name=self.name,
+            model=self.weights,
+            device=self.ep,
+            extra={"requested_ep": self.requested_ep, "fallback": self.fallback},
+        )
 
     def release(self) -> None:
         self._session = None

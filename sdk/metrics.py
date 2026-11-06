@@ -7,6 +7,7 @@ client; a production build pushes this snapshot into a real telemetry stack.
 """
 from __future__ import annotations
 
+import math
 import time
 from collections import deque
 from typing import Deque, Dict
@@ -27,6 +28,8 @@ class Metrics:
         self._last_objects = 0
         self._last_sources: Dict[str, int] = {}
         self._last_signs = 0
+        self._dropped_frames = 0
+        self._latency_violations = 0
 
     def record(self, frame: PerceptionFrame) -> None:
         self._frames += 1
@@ -40,12 +43,21 @@ class Metrics:
             sources[label] = sources.get(label, 0) + 1
         self._last_sources = sources
 
+    def record_drop(self, count: int = 1) -> None:
+        """Record frames dropped because the loop missed its deadline."""
+        self._dropped_frames += max(0, count)
+
+    def record_latency_violation(self) -> None:
+        """Record a frame whose detection latency exceeded the safety ceiling."""
+        self._latency_violations += 1
+
     @staticmethod
     def _percentile(values: list, q: float) -> float:
         if not values:
             return 0.0
         ordered = sorted(values)
-        idx = min(len(ordered) - 1, int(len(ordered) * q))
+        # Nearest-rank percentile: ceil(q * N) - 1, clamped to the sample range.
+        idx = max(0, min(len(ordered) - 1, math.ceil(q * len(ordered)) - 1))
         return ordered[idx]
 
     def snapshot(self) -> dict:
@@ -68,4 +80,6 @@ class Metrics:
                 "sources": self._last_sources,
             },
             "traffic_signs_last": self._last_signs,
+            "dropped_frames": self._dropped_frames,
+            "latency_violations": self._latency_violations,
         }

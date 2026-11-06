@@ -28,7 +28,7 @@ def iou(a: BBox2D, b: BBox2D) -> float:
 
 
 def nms(dets: List[Detection], iou_thresh: float = 0.45) -> List[Detection]:
-    """Greedy confidence-sorted NMS. Dets without a 2D box pass through."""
+    """Greedy confidence-sorted, class-aware NMS. Dets without a 2D box pass through."""
     if not dets:
         return []
     ordered = sorted(dets, key=lambda d: d.confidence, reverse=True)
@@ -38,7 +38,7 @@ def nms(dets: List[Detection], iou_thresh: float = 0.45) -> List[Detection]:
             kept.append(d)
             continue
         if all(
-            iou(d.bbox_2d, k.bbox_2d) < iou_thresh
+            k.cls_name != d.cls_name or iou(d.bbox_2d, k.bbox_2d) < iou_thresh
             for k in kept
             if k.bbox_2d is not None
         ):
@@ -62,7 +62,7 @@ def merge_detections(
             accepted.append(d)
             continue
         if all(
-            iou(d.bbox_2d, a.bbox_2d) < iou_thresh
+            a.cls_name != d.cls_name or iou(d.bbox_2d, a.bbox_2d) < iou_thresh
             for a in accepted
             if a.bbox_2d is not None
         ):

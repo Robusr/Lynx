@@ -12,12 +12,14 @@ Defaults:
 """
 from __future__ import annotations
 
+import os
 import statistics
 import sys
 import time
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+REPO = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO))
 
 import cv2
 
@@ -28,9 +30,10 @@ from sdk.config import load_config
 def main() -> None:
     idx = int(sys.argv[1]) if len(sys.argv) > 1 else 0
     n = int(sys.argv[2]) if len(sys.argv) > 2 else 20
-    cfg = load_config("config/robot.demo.yaml")
+    cfg = load_config(os.environ.get("LYNX_CONFIG", str(REPO / "config" / "robot.demo.yaml")))
+    frames_dir = Path(cfg.resolve(cfg.data.frames_dir) or cfg.data.frames_dir)
 
-    frames = sorted(Path("data/frames").glob("*.jpg"))
+    frames = sorted(frames_dir.glob("*.jpg"))
     if not frames:
         raise SystemExit("no frames in data/frames/ — run scripts/fetch_demo_data.py first")
     frame_path = frames[idx % len(frames)]

@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import sys
 from abc import ABC, abstractmethod
-from typing import Callable, Optional, TextIO
+from typing import Callable, Dict, Optional, TextIO
 
 from sdk.hal.base import MiddlewareConfig
 from sdk.output.frame import PerceptionFrame
@@ -62,3 +62,29 @@ class JsonLineMiddlewareAdapter(IMiddlewareAdapter):
 
     def stop(self) -> None:
         pass
+
+
+MiddlewareFactory = Callable[[], IMiddlewareAdapter]
+_MIDDLEWARE_FACTORIES: Dict[str, MiddlewareFactory] = {}
+
+
+def register_middleware(name: str, factory: MiddlewareFactory) -> None:
+    """Register or replace a middleware adapter factory."""
+    _MIDDLEWARE_FACTORIES[name] = factory
+
+
+def build_middleware(name: str, cfg: MiddlewareConfig) -> IMiddlewareAdapter:
+    """Construct and initialize the adapter registered for `name`."""
+    try:
+        factory = _MIDDLEWARE_FACTORIES[name]
+    except KeyError as exc:
+        known = ", ".join(sorted(_MIDDLEWARE_FACTORIES))
+        raise NotImplementedError(
+            f"middleware={name!r} transport not implemented; registered: {known}"
+        ) from exc
+    adapter = factory()
+    adapter.init(cfg)
+    return adapter
+
+
+register_middleware("custom", JsonLineMiddlewareAdapter)

@@ -12,7 +12,7 @@ from typing import List, Optional, Tuple
 
 from sdk.camera import Pinhole
 from sdk.geometry import iou
-from sdk.output.frame import Detection, SourceMask
+from sdk.output.frame import BBox2D, Detection, SourceMask
 
 
 def fuse_camera_lidar(
@@ -22,7 +22,7 @@ def fuse_camera_lidar(
     iou_thresh: float = 0.3,
 ) -> List[Detection]:
     fused: List[Detection] = []
-    lidar_2d: List[Tuple[Detection, object]] = [
+    lidar_2d: List[Tuple[Detection, BBox2D]] = [
         (d, cam.project_box(d.bbox_3d)) for d in lidar_dets if d.bbox_3d is not None
     ]
     matched_lidar: set = set()

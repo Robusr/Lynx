@@ -4,6 +4,8 @@ export interface LynxState {
   backend: string;
   running: boolean;
   has_frame: boolean;
+  error?: string;
+  latency_threshold_ms?: number;
 }
 
 export interface LynxMetrics {
@@ -29,10 +31,20 @@ export class LynxClient {
   }
 
   async switchBackend(backend: string): Promise<void> {
-    await fetch(`${this.origin}/api/switch`, {
+    const res = await fetch(`${this.origin}/api/switch`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ backend }),
     });
+    if (!res.ok) {
+      let detail = res.statusText;
+      try {
+        const body = (await res.json()) as { detail?: string; error?: string };
+        detail = body.detail ?? body.error ?? detail;
+      } catch {
+        // keep the HTTP status text
+      }
+      throw new Error(detail);
+    }
   }
 }

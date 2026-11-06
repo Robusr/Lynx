@@ -13,3 +13,8 @@ data/*.mp4
 *.engine
 .DS_Store
 .idea/
+*.egg-info/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.pytest_cache/

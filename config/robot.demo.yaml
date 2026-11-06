@@ -57,5 +57,5 @@ safety:                           # @ai-lock — validator treats these as read-
   redundant_fov_required: true
 
 data:                             # replay source for the demo/CI loop
-  frames_dir: "data/frames"
-  index_path: "data/index.csv"
+  frames_dir: "../data/frames"    # relative to this manifest (config/)
+  index_path: "../data/index.csv"

@@ -53,7 +53,9 @@ export class LynxSession {
     if (cfg) {
       return cfg;
     }
-    const venv = path.join(root, ".venv", "bin", "python");
+    const venv = process.platform === "win32"
+      ? path.join(root, ".venv", "Scripts", "python.exe")
+      : path.join(root, ".venv", "bin", "python");
     if (fs.existsSync(venv)) {
       return venv;
     }
@@ -88,6 +90,7 @@ export class LynxSession {
       cwd: root,
       env,
       stdio: ["ignore", "pipe", "pipe"],
+      windowsHide: true,
     });
     this.proc.stdout?.on("data", (d: Buffer) => this.log?.(d.toString()));
     this.proc.stderr?.on("data", (d: Buffer) => this.log?.(d.toString()));
@@ -107,7 +110,11 @@ export class LynxSession {
 
   stop(): void {
     if (this.proc) {
-      this.proc.kill();
+      if (process.platform === "win32" && this.proc.pid) {
+        spawn("taskkill", ["/pid", String(this.proc.pid), "/T", "/F"], { windowsHide: true });
+      } else {
+        this.proc.kill();
+      }
       this.proc = null;
     }
     this._running = false;

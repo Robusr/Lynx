@@ -23,18 +23,21 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import os
 import shutil
+import sys
+import tempfile
 import urllib.request
 from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-import sys
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+REPO = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO))
 
 import cv2
 
-COCO_IMG = "http://images.cocodataset.org/val2017/{name}"
+COCO_IMG = "https://images.cocodataset.org/val2017/{name}"
 ANNOTATIONS_URL = (
     "https://hf-mirror.com/datasets/LibreYOLO/coco2017/resolve/main/instances_val2017.json"
 )
@@ -90,7 +93,11 @@ def _download(name: str, dest: Path) -> bool:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--keep", type=int, default=15)
-    ap.add_argument("--annotations", type=Path, default=Path("data/annotations/instances_val2017.json"))
+    ap.add_argument(
+        "--annotations",
+        type=Path,
+        default=REPO / "data" / "annotations" / "instances_val2017.json",
+    )
     args = ap.parse_args()
 
     ann = _load_annotations(args.annotations)
@@ -98,8 +105,7 @@ def main() -> None:
     print(f"{len(ranked)} val2017 images contain target classes")
 
     candidates = _select(ranked, args.keep)
-    tmp = Path("/tmp/lynx_coco")
-    tmp.mkdir(parents=True, exist_ok=True)
+    tmp = Path(tempfile.mkdtemp(prefix="lynx_coco_"))
 
     downloaded: list[dict] = []
     with ThreadPoolExecutor(max_workers=4) as ex:
@@ -115,7 +121,7 @@ def main() -> None:
     from sdk.backend.offline import OfflineBackend
     from sdk.config import load_config
 
-    cfg = load_config("config/robot.demo.yaml")
+    cfg = load_config(os.environ.get("LYNX_CONFIG", str(REPO / "config" / "robot.demo.yaml")))
     be = OfflineBackend()
     be.init(cfg)
 
@@ -131,12 +137,12 @@ def main() -> None:
             break
     be.release()
 
-    # write replay set
-    frames_dir = Path("data/frames")
+    # write replay set using the manifest's resolved data paths
+    frames_dir = Path(cfg.resolve(cfg.data.frames_dir) or cfg.data.frames_dir)
     frames_dir.mkdir(parents=True, exist_ok=True)
     for old in frames_dir.glob("*.jpg"):
         old.unlink()
-    index_path = Path("data/index.csv")
+    index_path = Path(cfg.resolve(cfg.data.index_path) or (frames_dir.parent / "index.csv"))
     with open(index_path, "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
         w.writerow(["frame_name", "stamp_ns"])
@@ -144,6 +150,7 @@ def main() -> None:
             name = f"frame_{k:06d}.jpg"
             shutil.copy(tmp / c["name"], frames_dir / name)
             w.writerow([name, k * INTERVAL_NS])
+    shutil.rmtree(tmp, ignore_errors=True)
     print(f"wrote {len(kept)} real frames → {frames_dir} + {index_path}")
 
 

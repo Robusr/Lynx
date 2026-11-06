@@ -8,13 +8,16 @@ line of JSON to stdout:
     python config_io.py check        -> reads JSON on stdin -> {"ok": true, "checks": [...]}
     python config_io.py set <path>   -> reads JSON on stdin -> writes YAML -> {"ok": true}
 
-`check` and `set` read a JSON object from stdin (the form's current state), so
-live validation can run against unsaved edits without touching disk.
+`set` preserves existing YAML comments when `ruamel.yaml` is available and writes
+atomically, so an interrupted save cannot truncate the manifest.
 """
 from __future__ import annotations
 
+import io
 import json
+import os
 import sys
+import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -67,7 +70,7 @@ def cmd_set(path: Path) -> None:
         obj = json.load(sys.stdin)
         cfg = RobotConfig.model_validate(obj)
         _guard_ai_lock(path, cfg)
-        path.write_text(_dump_yaml(cfg), encoding="utf-8")
+        _atomic_write(path, _dump_yaml(path, cfg))
         _print({"ok": True})
     except AiLockError as exc:
         _print({"ok": False, "error": str(exc)})
@@ -99,17 +102,66 @@ def _guard_ai_lock(path: Path, cfg: RobotConfig) -> None:
         )
 
 
-def _dump_yaml(cfg: RobotConfig) -> str:
-    # Regenerating the whole file drops hand-written inline comments; re-add the
-    # two that matter (header + the @ai-lock read-only marker on each locked section).
-    body = yaml.safe_dump(cfg.model_dump(), sort_keys=False, allow_unicode=True)
-    for name in AI_LOCK_SECTIONS:
-        body = body.replace(
-            f"{name}:",
-            f"# @ai-lock — validator treats these as read-only\n{name}:",
-            1,
-        )
-    return '# robot config — edited via "Lynx: Edit Config (Form)"\n' + body
+def _merge(existing, incoming) -> None:
+    """Recursively update a ruamel CommentedMap in place, preserving comments."""
+    for key, value in incoming.items():
+        if isinstance(value, dict) and isinstance(existing.get(key), dict):
+            _merge(existing[key], value)
+        else:
+            existing[key] = value
+    for key in list(existing.keys()):
+        if key not in incoming:
+            del existing[key]
+
+
+def _dump_yaml(path: Path, cfg: RobotConfig) -> str:
+    data = cfg.model_dump(mode="json")
+    try:
+        from ruamel.yaml import YAML
+    except ImportError:  # pragma: no cover - ruamel is a declared dependency
+        body = yaml.safe_dump(data, sort_keys=False, allow_unicode=True)
+        for name in AI_LOCK_SECTIONS:
+            body = body.replace(
+                f"{name}:",
+                f"# @ai-lock — validator treats these as read-only\n{name}:",
+                1,
+            )
+        return '# robot config — edited via "Lynx: Edit Config (Form)"\n' + body
+
+    rt = YAML(typ="rt")
+    rt.preserve_quotes = True
+    rt.indent(mapping=2, sequence=4, offset=2)
+    if path.exists():
+        with path.open("r", encoding="utf-8") as f:
+            existing = rt.load(f) or {}
+    else:
+        existing = {}
+    if not existing:
+        existing = data
+        existing = {"schema_version": data["schema_version"], **data}
+    else:
+        _merge(existing, data)
+    stream = io.StringIO()
+    rt.dump(existing, stream)
+    text = stream.getvalue()
+    if not text.startswith("#"):
+        text = '# robot config — edited via "Lynx: Edit Config (Form)"\n' + text
+    return text
+
+
+def _atomic_write(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(prefix=path.name + ".", dir=str(path.parent))
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(text)
+        os.replace(tmp_name, path)
+    except Exception:
+        try:
+            os.unlink(tmp_name)
+        except OSError:
+            pass
+        raise
 
 
 def main() -> None:

@@ -1,6 +1,6 @@
 """Shared contract types for the HAL plugin seams.
 
-Mirrors the C++ structs in 02-technical-architecture.md §3 so the Python demo
+Mirrors the C++ structs in docs/architecture.md §Layers so the Python demo
 and the eventual C++ SDK keep identical shapes. These are passive dataclasses —
 runtime plumbing, not the serialized product contract (that is
 sdk.output.frame). HealthReport/BackendInfo feed @ai-telemetry.

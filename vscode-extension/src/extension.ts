@@ -89,9 +89,11 @@ export function activate(context: vscode.ExtensionContext): void {
           out.appendLine("[lynx] ready — first frame received");
           void vscode.window.showInformationMessage(`Lynx ready on ${session.origin}`);
         } else {
-          out.appendLine("[lynx] timed out waiting for first frame");
+          const state = await new LynxClient(session.origin).state().catch(() => undefined);
+          const detail = state?.error ? ` Server error: ${state.error}` : "";
+          out.appendLine(`[lynx] timed out waiting for first frame${detail}`);
           void vscode.window.showWarningMessage(
-            "Lynx server is up but no frame arrived yet — check the camera source.",
+            `Lynx server is up but no frame arrived yet — check the camera source.${detail}`,
           );
         }
       })();

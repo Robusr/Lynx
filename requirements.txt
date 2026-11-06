@@ -1,7 +1,3 @@
-# Lynx — core skeleton dependencies (no ML). Python 3.11+ recommended.
-numpy>=1.26
-pydantic>=2.7
-PyYAML>=6.0
-opencv-python>=4.9
-fastapi>=0.111
-uvicorn[standard]>=0.30
+# Lynx core + demo server dependencies. Python 3.11+ recommended.
+# pyproject.toml is the single source of dependency versions.
+-e .[server]
