@@ -55,3 +55,19 @@ def test_counts_sources_and_objects():
     s = m.snapshot()
     assert s["objects"]["last"] == 3
     assert s["objects"]["sources"] == {"fusion": 1, "camera": 1, "lidar": 1}
+
+
+def test_percentile_is_nearest_rank():
+    values = [float(i) for i in range(1, 21)]
+    assert Metrics._percentile(values, 0.50) == 10.0
+    assert Metrics._percentile(values, 0.95) == 19.0
+    assert Metrics._percentile([], 0.95) == 0.0
+
+
+def test_records_drops_and_latency_violations():
+    m = Metrics()
+    m.record_drop(2)
+    m.record_latency_violation()
+    s = m.snapshot()
+    assert s["dropped_frames"] == 2
+    assert s["latency_violations"] == 1
