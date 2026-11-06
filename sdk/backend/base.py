@@ -2,7 +2,7 @@
 
 `IBackend` is the plugin seam the whole product is built around — offline and
 enhanced are interchangeable behind it, and third-party/hardware-specific
-backends drop in without touching the pipeline. See 02-technical-architecture.md.
+backends drop in without touching the pipeline. See docs/architecture.md.
 """
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ from sdk.output.frame import Detection
 class IBackend(ABC):
     """A perception backend maps a camera frame to a list of detections.
 
-    Doc-alignment notes (02-technical-architecture.md §3.2):
+    Doc-alignment notes (docs/architecture.md §Extension points):
       * the doc's `detect(const FrameBatch&)` is `detect(image: np.ndarray)` here —
         the demo pipeline reduces a FrameBatch to its camera frame before detection;
         a multi-sensor backend (lidar/radar/imu in FrameBatch) is a later milestone.

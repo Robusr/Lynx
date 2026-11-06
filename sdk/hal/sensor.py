@@ -3,7 +3,7 @@
 ISensorAdapter is the plugin interface every physical sensor exposes. The core
 pipeline only ever sees FrameBatch, so adding a sensor means adding an adapter
 with zero change to detection/fusion/tracking. Pull-mode is the SDK default
-(doc §3.1) so streams stay deterministic and replayable.
+(docs/architecture.md §Extension points) so streams stay deterministic and replayable.
 
 ReplaySensorAdapter is the demo/CI concrete implementation: it wraps the
 recorded-frame ReplayReader behind the same interface a live driver would.
@@ -11,7 +11,7 @@ recorded-frame ReplayReader behind the same interface a live driver would.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Iterator, Optional
+from typing import Any, Callable, Dict, Iterator, Optional
 
 from sdk.hal.base import HealthReport
 from sdk.input.replay_reader import FrameBatch, ReplayReader
@@ -90,3 +90,31 @@ class ReplaySensorAdapter(ISensorAdapter):
         if batch is None:
             raise StopIteration
         return batch
+
+
+SensorFactory = Callable[[Any, Any], ISensorAdapter]
+_SENSOR_FACTORIES: Dict[str, SensorFactory] = {}
+
+
+def register_sensor_adapter(name: str, factory: SensorFactory) -> None:
+    """Register or replace a sensor adapter factory."""
+    _SENSOR_FACTORIES[name] = factory
+
+
+def build_sensor_adapter(name: str, cfg: Any, calib: Any = None) -> ISensorAdapter:
+    """Construct and initialize the adapter registered for `name`."""
+    try:
+        factory = _SENSOR_FACTORIES[name]
+    except KeyError as exc:
+        known = ", ".join(sorted(_SENSOR_FACTORIES))
+        raise KeyError(f"unknown sensor adapter {name!r}; registered: {known}") from exc
+    adapter = factory(cfg, calib)
+    adapter.init(cfg, calib)
+    return adapter
+
+
+def _replay_factory(cfg: Any, calib: Any = None) -> ISensorAdapter:
+    return ReplaySensorAdapter()
+
+
+register_sensor_adapter("replay", _replay_factory)
