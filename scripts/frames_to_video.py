@@ -16,14 +16,15 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+REPO = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO))
 
 import cv2
 
 
 def main() -> None:
-    frames_dir = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("data/frames")
-    out = Path(sys.argv[2]) if len(sys.argv) > 2 else Path("data/demo.mp4")
+    frames_dir = Path(sys.argv[1]) if len(sys.argv) > 1 else REPO / "data" / "frames"
+    out = Path(sys.argv[2]) if len(sys.argv) > 2 else REPO / "data" / "demo.mp4"
     fps = float(sys.argv[3]) if len(sys.argv) > 3 else 20.0
 
     files = sorted(frames_dir.glob("*.jpg"))

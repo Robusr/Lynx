@@ -19,6 +19,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from sdk.config import load_config
 from sdk.validate import to_report, validate
 
+REPO = Path(__file__).resolve().parents[1]
+
 
 def main() -> None:
     argv = sys.argv[1:]
@@ -28,7 +30,7 @@ def main() -> None:
         if i + 1 < len(argv):
             out_path = argv[i + 1]
             del argv[i:i + 2]
-    cfg_path = argv[0] if argv else "config/robot.demo.yaml"
+    cfg_path = argv[0] if argv else str(REPO / "config" / "robot.demo.yaml")
     try:
         cfg = load_config(cfg_path)
     except Exception as exc:  # structural (pydantic) or IO error

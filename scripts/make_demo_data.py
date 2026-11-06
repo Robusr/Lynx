@@ -18,7 +18,8 @@ import csv
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+REPO = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO))
 
 import numpy as np
 
@@ -144,7 +145,7 @@ def _step(obj):
 
 def main() -> None:
     n = int(sys.argv[1]) if len(sys.argv) > 1 else 240
-    frames_dir = Path(sys.argv[2]) if len(sys.argv) > 2 else Path("data/frames")
+    frames_dir = Path(sys.argv[2]) if len(sys.argv) > 2 else REPO / "data" / "frames"
     frames_dir.mkdir(parents=True, exist_ok=True)
     index_path = frames_dir.parent / "index.csv"
 
