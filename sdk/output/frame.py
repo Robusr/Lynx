@@ -1,11 +1,10 @@
 """Standardized perception data model.
 
 This is the **product contract** — the single data schema every backend emits and
-every downstream consumer reads. It mirrors the design in the technical architecture
-doc (PerceptionFrame / Object / TrafficSign), aligned with ASAM OpenLABEL object
+every downstream consumer reads. It mirrors the design in the data model in docs/architecture.md, aligned with ASAM OpenLABEL object
 taxonomy and ISO 23150 field semantics.
 
-Field provenance (see 02-technical-architecture.md §4):
+Field provenance (see docs/architecture.md):
 
 - `type` (coarse enum) and `sub_type` (open text) are derived from `cls_name`
   when not set explicitly, so backends keep emitting COCO names while the
@@ -123,7 +122,7 @@ class BBox3D(BaseModel):
     x: float
     y: float
     z: float
-    l: float
+    l: float  # noqa: E741
     w: float
     h: float
     yaw: float
@@ -167,7 +166,8 @@ class Track(Detection):
     """A tracked detection with a persistent id and velocity."""
 
     track_id: int
-    velocity: Tuple[float, float, float] = (0.0, 0.0, 0.0)  # m/s in vehicle frame
+    velocity: Tuple[float, float, float] = (0.0, 0.0, 0.0)  # m/s in the vehicle frame; requires bbox_3d
+    velocity_px: Tuple[float, float] = (0.0, 0.0)  # image-plane velocity in px/s; always available
 
 
 class TrafficSign(BaseModel):
@@ -196,10 +196,15 @@ class PerceptionFrame(BaseModel):
     message (flattened here for the Python prototype).
     """
 
+    schema_version: str = "1.0"  # contract version; bump on breaking field changes
     stamp_ns: int
     frame_id: str
     seq: int = 0  # monotonic frame sequence (Header.seq)
-    backend: str = "offline"  # offline | enhanced — rendered on the dashboard
+    backend: str = "offline"  # offline | enhanced | onnx:<ep> — rendered on the dashboard
     objects: List[Track] = Field(default_factory=list)
     traffic_signs: List[TrafficSign] = Field(default_factory=list)
     latency_ms: float = 0.0
+    warnings: List[str] = Field(
+        default_factory=list,
+        description="Per-frame runtime flags, e.g. 'detection_latency_exceeded'.",
+    )

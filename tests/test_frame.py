@@ -16,6 +16,7 @@ def test_track_inherits_detection_and_adds_id():
     t = Track(cls_id=0, cls_name="person", confidence=0.8, track_id=3)
     assert t.track_id == 3
     assert t.velocity == (0.0, 0.0, 0.0)
+    assert t.velocity_px == (0.0, 0.0)
 
 
 def test_bbox_roundtrip():
@@ -31,3 +32,19 @@ def test_frame_defaults_serialize():
     assert d["traffic_signs"] == []
     assert d["backend"] == "offline"
     assert d["latency_ms"] == 0.0
+    assert d["schema_version"] == "1.0"
+    assert d["warnings"] == []
+
+
+def test_track_velocity_fields_roundtrip():
+    t = Track(
+        cls_id=2,
+        cls_name="car",
+        confidence=0.9,
+        track_id=1,
+        velocity=(1.5, -0.5, 0.0),
+        velocity_px=(20.0, -4.0),
+    )
+    dumped = t.model_dump()
+    assert dumped["velocity"] == (1.5, -0.5, 0.0)
+    assert dumped["velocity_px"] == (20.0, -4.0)
