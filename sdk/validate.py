@@ -1,14 +1,18 @@
 """Deployment preflight validation (the "on-board self-check").
 
 Semantic checks that go beyond structural (pydantic) validation: time-sync
-topology, extrinsics coverage, FOV, resource budget, safety bounds. Errors block
-startup; warnings require explicit confirmation; passes are informational.
+topology, extrinsics and calibration files, interface contract, bandwidth, FOV,
+resource budget, and safety bounds. Errors block startup; warnings require an
+explicit opt-in through `pipeline.run(accept_warnings=True)`.
 
-This is a demo-grade subset — the production validator grows along the same seams.
+Keep the seven-check order stable: the README, the JSON report, and the VS Code
+diagnostics all present them in this order.
 """
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
+from pathlib import Path
 from typing import List
 
 from sdk.config import RobotConfig
@@ -46,9 +50,22 @@ def _check_time_sync(cfg: RobotConfig) -> Check:
 
 
 def _check_extrinsics(cfg: RobotConfig) -> Check:
-    missing = [s.name for s in cfg.sensors if not s.mount]
+    missing = [s.name for s in cfg.sensors if s.mount is None]
     if missing:
         return Check("extrinsics", "error", f"sensors missing mount (extrinsics): {missing}")
+
+    missing_files = []
+    for field in ("camera_intrinsics", "extrinsics", "lidar_camera_extrinsic"):
+        declared = getattr(cfg.calibration, field)
+        resolved = cfg.resolve(declared)
+        if resolved and not Path(resolved).exists():
+            missing_files.append(f"{field}={resolved}")
+    if missing_files:
+        return Check(
+            "extrinsics",
+            "error",
+            "declared calibration file(s) not found: " + ", ".join(missing_files),
+        )
     return Check("extrinsics", "pass", f"{len(cfg.sensors)} sensor(s) with mount defined")
 
 
@@ -78,7 +95,7 @@ def _check_interface(cfg: RobotConfig) -> Check:
 # Coarse per-sensor data-rate estimates (Mbps) for the bandwidth budget. Demo-grade
 # figures; a production build reads the adapter's actual bitrate.
 _TYPE_MBPS = {"camera": 8.0, "lidar": 10.0, "radar": 0.1, "imu": 0.01, "gnss": 0.01}
-_IO_BUDGET_MBPS = 1000.0  # GigE-class domain controller; T3-B maps this to compute_tops/middleware
+_IO_BUDGET_MBPS = 1000.0  # GigE-class domain controller; a real build maps this to the board
 
 
 def _check_bandwidth(cfg: RobotConfig) -> Check:
@@ -95,26 +112,36 @@ def _check_bandwidth(cfg: RobotConfig) -> Check:
 
 
 def _check_fov(cfg: RobotConfig) -> Check:
+    if not any(s.type == "camera" for s in cfg.sensors):
+        return Check(
+            "fov",
+            "error",
+            "no camera sensor declared; the demo pipeline requires at least one camera",
+        )
     roi = cfg.perception.roi
-    forward = roi.get("forward_m", 0.0)
-    if forward <= 0:
+    if roi.forward_m <= 0:
         return Check("fov", "error", "perception.roi.forward_m must be > 0")
     if cfg.safety.redundant_fov_required:
-        forward_sensors = [s for s in cfg.sensors if s.type in ("camera", "lidar")]
+        forward_sensors = [
+            s
+            for s in cfg.sensors
+            if s.type in ("camera", "lidar")
+            and s.mount is not None
+            and abs(s.mount.yaw) <= math.pi / 2
+        ]
         if len(forward_sensors) < 2:
             return Check(
                 "fov",
                 "warn",
-                f"safety.redundant_fov_required=true but only {len(forward_sensors)} forward sensor(s) declared",
+                f"safety.redundant_fov_required=true but only {len(forward_sensors)} "
+                "forward-facing sensor(s) declared",
             )
-    return Check("fov", "pass", f"ROI forward {forward}m, lateral {roi.get('lateral_m', 0)}m")
+    return Check("fov", "pass", f"ROI forward {roi.forward_m}m, lateral {roi.lateral_m}m")
 
 
 # Coarse budget heuristic (not a profiled number): the enhanced backend runs
-# YOLO11x plus a second ROI pass, so it is heavy. OfflineBackend's docstring
-# documents it as the fleet/fallback backend for exactly this reason — embedded
-# controllers are unlikely to hold enhanced at demo latency. A full version maps
-# measured FLOPs/VRAM against the controller budget.
+# YOLO11x plus a second ROI pass, so it is heavy. A full version maps measured
+# FLOPs/VRAM against the controller budget.
 _HEAVY_BACKENDS = {"enhanced"}
 _EMBEDDED_CONTROLLERS = {"jetson_orin_nano", "rk3588"}
 
@@ -128,6 +155,13 @@ def _check_resource(cfg: RobotConfig) -> Check:
             "warn",
             f"backend={backend} (YOLO11x + ROI) on {controller} may exceed the "
             f"compute budget; prefer offline/onnx",
+        )
+    if controller in _EMBEDDED_CONTROLLERS and cfg.domain_controller.compute_tops <= 0:
+        return Check(
+            "resource",
+            "warn",
+            f"controller={controller} but compute_tops is unspecified; "
+            "the resource budget cannot be verified",
         )
     return Check(
         "resource",

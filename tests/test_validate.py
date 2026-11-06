@@ -32,14 +32,14 @@ def test_valid_config_has_no_errors():
 
 def test_missing_extrinsics_is_error():
     cfg = _make_cfg()
-    cfg.sensors[0].mount = {}
+    cfg.sensors[0].mount = None
     checks = validate(cfg)
     assert any(c.name == "extrinsics" and c.severity == "error" for c in checks)
 
 
 def test_zero_roi_forward_is_error():
     cfg = _make_cfg()
-    cfg.perception.roi["forward_m"] = 0
+    cfg.perception.roi.forward_m = 0
     checks = validate(cfg)
     assert any(c.name == "fov" and c.severity == "error" for c in checks)
 
@@ -49,3 +49,25 @@ def test_zero_max_speed_is_error():
     cfg.vehicle.max_speed_ms = 0
     checks = validate(cfg)
     assert any(c.name == "safety" and c.severity == "error" for c in checks)
+
+
+def test_missing_camera_is_a_fov_error():
+    cfg = _make_cfg()
+    cfg.sensors[0].type = "lidar"
+    cfg.sensors[0].interface = "ethernet"
+    checks = validate(cfg)
+    assert any(c.name == "fov" and c.severity == "error" for c in checks)
+
+
+def test_missing_calibration_file_is_an_extrinsics_error():
+    cfg = _make_cfg()
+    cfg.calibration.camera_intrinsics = "/definitely/not/here.yaml"
+    checks = validate(cfg)
+    assert any(c.name == "extrinsics" and c.severity == "error" for c in checks)
+
+
+def test_redundant_fov_with_one_sensor_warns():
+    cfg = _make_cfg()
+    cfg.safety.redundant_fov_required = True
+    checks = validate(cfg)
+    assert any(c.name == "fov" and c.severity == "warn" for c in checks)
