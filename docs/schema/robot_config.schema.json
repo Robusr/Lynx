@@ -2,7 +2,7 @@
   "$defs": {
     "CalibrationConfig": {
       "additionalProperties": false,
-      "description": "Calibration artifacts (intrinsics/extrinsics/time-offset) for CalibStore.\n\nPaths are contract fields; the CalibStore loader (and ISensorAdapter.init's\n`calib` argument) is a later milestone, so these are declared but not yet read.",
+      "description": "Calibration artifacts (intrinsics/extrinsics/time-offset) for CalibStore.\n\nPaths are contract fields; the CalibStore loader (and ISensorAdapter.init's\n`calib` argument) is a later milestone. The preflight gate verifies that any\ndeclared file exists, so a manifest cannot silently reference missing data.",
       "properties": {
         "camera_intrinsics": {
           "anyOf": [
@@ -81,6 +81,35 @@
       "title": "DataConfig",
       "type": "object"
     },
+    "DimensionsConfig": {
+      "additionalProperties": false,
+      "description": "Vehicle envelope in metres.",
+      "properties": {
+        "l": {
+          "default": 2.4,
+          "description": "Length in m.",
+          "exclusiveMinimum": 0.0,
+          "title": "L",
+          "type": "number"
+        },
+        "w": {
+          "default": 1.3,
+          "description": "Width in m.",
+          "exclusiveMinimum": 0.0,
+          "title": "W",
+          "type": "number"
+        },
+        "h": {
+          "default": 1.9,
+          "description": "Height in m.",
+          "exclusiveMinimum": 0.0,
+          "title": "H",
+          "type": "number"
+        }
+      },
+      "title": "DimensionsConfig",
+      "type": "object"
+    },
     "DomainControllerConfig": {
       "additionalProperties": false,
       "properties": {
@@ -112,6 +141,7 @@
         "compute_tops": {
           "default": 0.0,
           "description": "INT8 TOPS, advisory for the resource budget (0 = unspecified).",
+          "minimum": 0.0,
           "title": "Compute Tops",
           "type": "number"
         },
@@ -151,6 +181,50 @@
       "title": "DomainControllerConfig",
       "type": "object"
     },
+    "MountConfig": {
+      "additionalProperties": false,
+      "description": "Sensor extrinsics relative to the vehicle frame.",
+      "properties": {
+        "x": {
+          "default": 0.0,
+          "description": "Forward offset from the vehicle frame in m.",
+          "title": "X",
+          "type": "number"
+        },
+        "y": {
+          "default": 0.0,
+          "description": "Left offset from the vehicle frame in m.",
+          "title": "Y",
+          "type": "number"
+        },
+        "z": {
+          "default": 0.0,
+          "description": "Up offset from the vehicle frame in m.",
+          "title": "Z",
+          "type": "number"
+        },
+        "roll": {
+          "default": 0.0,
+          "description": "Roll in rad.",
+          "title": "Roll",
+          "type": "number"
+        },
+        "pitch": {
+          "default": 0.0,
+          "description": "Pitch in rad.",
+          "title": "Pitch",
+          "type": "number"
+        },
+        "yaw": {
+          "default": 0.0,
+          "description": "Yaw in rad; 0 points forward.",
+          "title": "Yaw",
+          "type": "number"
+        }
+      },
+      "title": "MountConfig",
+      "type": "object"
+    },
     "OutputConfig": {
       "additionalProperties": false,
       "properties": {
@@ -163,6 +237,7 @@
         "rate_hz": {
           "default": 10.0,
           "description": "Perception loop rate (Hz).",
+          "exclusiveMinimum": 0.0,
           "title": "Rate Hz",
           "type": "number"
         }
@@ -187,24 +262,28 @@
         "conf": {
           "default": 0.4,
           "description": "Detection confidence threshold (full-frame pass).",
+          "maximum": 1.0,
+          "minimum": 0.0,
           "title": "Conf",
           "type": "number"
         },
         "modules": {
-          "description": "Enabled pipeline modules.",
+          "description": "Enabled pipeline modules; 'detection' is required.",
           "items": {
+            "enum": [
+              "detection",
+              "tracking",
+              "traffic_sign"
+            ],
             "type": "string"
           },
+          "minItems": 1,
           "title": "Modules",
           "type": "array"
         },
         "roi": {
-          "additionalProperties": {
-            "type": "number"
-          },
-          "description": "Region of interest around the ego vehicle (meters).",
-          "title": "Roi",
-          "type": "object"
+          "$ref": "#/$defs/ROIConfig",
+          "description": "Region of interest around the ego vehicle (meters)."
         },
         "small_target_enhance": {
           "default": true,
@@ -214,6 +293,28 @@
         }
       },
       "title": "PerceptionConfig",
+      "type": "object"
+    },
+    "ROIConfig": {
+      "additionalProperties": false,
+      "description": "Region of interest around the ego vehicle.",
+      "properties": {
+        "forward_m": {
+          "default": 60.0,
+          "description": "Forward range in m; must be > 0.",
+          "exclusiveMinimum": 0.0,
+          "title": "Forward M",
+          "type": "number"
+        },
+        "lateral_m": {
+          "default": 15.0,
+          "description": "Half-width in m; must be > 0.",
+          "exclusiveMinimum": 0.0,
+          "title": "Lateral M",
+          "type": "number"
+        }
+      },
+      "title": "ROIConfig",
       "type": "object"
     },
     "SafetyConfig": {
@@ -233,7 +334,7 @@
         },
         "max_detection_latency_ms": {
           "default": 100.0,
-          "description": "Latency ceiling (ms); violations flagged.",
+          "description": "Latency ceiling (ms); violations flagged per frame.",
           "title": "Max Detection Latency Ms",
           "type": "number"
         },
@@ -292,16 +393,21 @@
           "type": "string"
         },
         "mount": {
-          "additionalProperties": {
-            "type": "number"
-          },
-          "description": "Extrinsics relative to the vehicle frame (x/y/z in m, roll/pitch/yaw in rad).",
-          "title": "Mount",
-          "type": "object"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MountConfig"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Extrinsics relative to the vehicle frame; required by the preflight gate."
         },
         "fps": {
           "default": 20.0,
           "description": "Native sensor rate (Hz).",
+          "exclusiveMinimum": 0.0,
           "title": "Fps",
           "type": "number"
         },
@@ -353,7 +459,7 @@
         },
         "wheelbase_m": {
           "default": 1.8,
-          "description": "Wheelbase in m (kinematic/geometry; no runtime consumer yet).",
+          "description": "Wheelbase in m (geometry; no runtime consumer yet).",
           "title": "Wheelbase M",
           "type": "number"
         },
@@ -364,12 +470,8 @@
           "type": "number"
         },
         "dimensions": {
-          "additionalProperties": {
-            "type": "number"
-          },
-          "description": "Vehicle envelope l/w/h in m (geometry; no runtime consumer yet).",
-          "title": "Dimensions",
-          "type": "object"
+          "$ref": "#/$defs/DimensionsConfig",
+          "description": "Vehicle envelope l/w/h in m (geometry; no runtime consumer yet)."
         }
       },
       "required": [
